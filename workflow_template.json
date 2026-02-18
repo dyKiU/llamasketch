@@ -1,0 +1,88 @@
+{
+  "1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "input_sketch.png"
+    },
+    "_meta": { "title": "Load Sketch" }
+  },
+  "2": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "_meta": { "title": "VAE Loader" }
+  },
+  "3": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["1", 0],
+      "vae": ["2", 0]
+    },
+    "_meta": { "title": "VAE Encode" }
+  },
+  "4": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "flux-2-klein-4b-fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": { "title": "UNET Loader (FLUX Klein 4B FP8)" }
+  },
+  "5": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "flux2"
+    },
+    "_meta": { "title": "CLIP Loader (Qwen 3 4B)" }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "a colorful illustration, vibrant colors, detailed shading",
+      "clip": ["5", 0]
+    },
+    "_meta": { "title": "Positive Prompt" }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["5", 0]
+    },
+    "_meta": { "title": "Negative Prompt (empty)" }
+  },
+  "8": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["4", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["3", 0],
+      "seed": 42,
+      "steps": 4,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 0.65
+    },
+    "_meta": { "title": "KSampler" }
+  },
+  "9": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["2", 0]
+    },
+    "_meta": { "title": "VAE Decode" }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["9", 0],
+      "filename_prefix": "test_output"
+    },
+    "_meta": { "title": "Save Image" }
+  }
+}
