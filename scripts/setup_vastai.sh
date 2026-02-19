@@ -12,9 +12,9 @@ MODELS_DIR="${COMFYUI_DIR}/models"
 
 # Model definitions: name | destination dir | URL | minimum size in bytes
 MODELS=(
-  "flux-2-klein-4b-fp8.safetensors|${MODELS_DIR}/diffusion_models|https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors|3000000000"
-  "qwen_3_4b.safetensors|${MODELS_DIR}/text_encoders|https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors|7000000000"
-  "flux2-vae.safetensors|${MODELS_DIR}/vae|https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors|300000000"
+  "flux-2-klein-4b.safetensors|${MODELS_DIR}/diffusion_models|https://huggingface.co/Comfy-Org/flux2-klein-4B/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors|7000000000"
+  "qwen_3_4b.safetensors|${MODELS_DIR}/text_encoders|https://huggingface.co/Comfy-Org/flux2-klein-4B/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors|7000000000"
+  "flux2-vae.safetensors|${MODELS_DIR}/vae|https://huggingface.co/Comfy-Org/flux2-klein-4B/resolve/main/split_files/vae/flux2-vae.safetensors|300000000"
 )
 
 # Colors for output
@@ -36,8 +36,22 @@ if [ ! -d "${COMFYUI_DIR}" ]; then
 fi
 info "ComfyUI found at ${COMFYUI_DIR}"
 
-# ---- Step 2: Install pip dependencies ----
-info "Step 2: Installing pip dependencies..."
+# ---- Step 2: Upgrade PyTorch to cu130 (matches CUDA 13.0 driver) ----
+info "Step 2: Checking PyTorch CUDA version..."
+CURRENT_CUDA=$(python3 -c "import torch; print(torch.version.cuda)" 2>/dev/null || echo "unknown")
+info "  Current PyTorch CUDA: ${CURRENT_CUDA}"
+
+if [[ "${CURRENT_CUDA}" != 13.* ]]; then
+    info "  Upgrading PyTorch to cu130 (required for CUDA 13.0 driver + comfy_kitchen optimized ops)..."
+    pip install --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130 2>&1 | tail -5
+    NEW_CUDA=$(python3 -c "import torch; print(torch.version.cuda)" 2>/dev/null || echo "unknown")
+    info "  PyTorch CUDA upgraded: ${CURRENT_CUDA} -> ${NEW_CUDA}"
+else
+    info "  PyTorch already has cu130+, skipping upgrade."
+fi
+
+# ---- Step 2b: Install pip dependencies ----
+info "Step 2b: Installing pip dependencies..."
 pip install --quiet huggingface_hub Pillow requests
 info "Dependencies installed."
 
@@ -97,13 +111,15 @@ fi
 info "All model files verified."
 
 # ---- Step 5: Check if ComfyUI is running ----
-info "Step 5: Checking if ComfyUI is running on port 8188..."
-if curl -s --max-time 5 http://127.0.0.1:8188/ > /dev/null 2>&1; then
+info "Step 5: Checking if ComfyUI is running..."
+if curl -s --max-time 5 http://127.0.0.1:18188/ > /dev/null 2>&1; then
+    info "ComfyUI is running on port 18188 (internal)."
+elif curl -s --max-time 5 http://127.0.0.1:8188/ > /dev/null 2>&1; then
     info "ComfyUI is running on port 8188."
 else
-    warn "ComfyUI is NOT responding on port 8188."
+    warn "ComfyUI is NOT responding on port 18188 or 8188."
     warn "It may need to be started or restarted to load the new models."
-    warn "Check with: curl http://127.0.0.1:8188/"
+    warn "Check with: curl http://127.0.0.1:18188/"
 fi
 
 # ---- Step 6: Copy test files if present alongside this script ----
@@ -112,13 +128,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 for file in "workflow_template.json" "test_inference.py"; do
     # Check next to this script
+    src=""
     if [ -f "${SCRIPT_DIR}/${file}" ]; then
-        cp "${SCRIPT_DIR}/${file}" "/workspace/${file}"
-        info "  Copied ${file} to /workspace/"
-    # Check in parent directory (for workflow_template.json at project root)
+        src="${SCRIPT_DIR}/${file}"
     elif [ -f "${SCRIPT_DIR}/../${file}" ]; then
-        cp "${SCRIPT_DIR}/../${file}" "/workspace/${file}"
-        info "  Copied ${file} to /workspace/"
+        src="${SCRIPT_DIR}/../${file}"
+    fi
+
+    if [ -n "${src}" ]; then
+        # Avoid copying a file onto itself
+        src_real="$(realpath "${src}" 2>/dev/null || readlink -f "${src}" 2>/dev/null || echo "${src}")"
+        dst_real="$(realpath "/workspace/${file}" 2>/dev/null || readlink -f "/workspace/${file}" 2>/dev/null || echo "/workspace/${file}")"
+        if [ "${src_real}" != "${dst_real}" ]; then
+            cp "${src}" "/workspace/${file}"
+            info "  Copied ${file} to /workspace/"
+        else
+            info "  ${file} already in /workspace/"
+        fi
     elif [ -f "/workspace/${file}" ]; then
         info "  ${file} already in /workspace/"
     else
@@ -133,7 +159,7 @@ info "Setup complete!"
 echo "============================================"
 echo ""
 echo "Models installed:"
-echo "  - diffusion_models/flux-2-klein-4b-fp8.safetensors"
+echo "  - diffusion_models/flux-2-klein-4b.safetensors"
 echo "  - text_encoders/qwen_3_4b.safetensors"
 echo "  - vae/flux2-vae.safetensors"
 echo ""

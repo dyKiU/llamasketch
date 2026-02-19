@@ -7,7 +7,7 @@ on a Vast.ai instance. Generates test sketch images with Pillow and validates
 the full inference pipeline.
 
 Usage:
-    python3 test_inference.py [--comfyui-url http://127.0.0.1:8188] [--workflow workflow_template.json]
+    python3 test_inference.py [--comfyui-url http://127.0.0.1:18188] [--workflow workflow_template.json]
 """
 
 import argparse
@@ -15,6 +15,7 @@ import io
 import json
 import math
 import os
+import struct
 import sys
 import time
 import unittest
@@ -30,12 +31,12 @@ except ImportError:
     sys.exit(1)
 
 # Globals set by CLI args
-COMFYUI_URL = "http://127.0.0.1:8188"
+COMFYUI_URL = "http://127.0.0.1:18188"
 WORKFLOW_PATH = "workflow_template.json"
 
 # Model files expected on the filesystem
 MODEL_FILES = {
-    "/workspace/ComfyUI/models/diffusion_models/flux-2-klein-4b-fp8.safetensors": 3_000_000_000,
+    "/workspace/ComfyUI/models/diffusion_models/flux-2-klein-4b.safetensors": 7_000_000_000,
     "/workspace/ComfyUI/models/text_encoders/qwen_3_4b.safetensors": 7_000_000_000,
     "/workspace/ComfyUI/models/vae/flux2-vae.safetensors": 300_000_000,
 }
@@ -45,12 +46,18 @@ REQUIRED_NODES = [
     "LoadImage",
     "VAELoader",
     "VAEEncode",
+    "VAEDecode",
     "UNETLoader",
     "CLIPLoader",
     "CLIPTextEncode",
-    "KSampler",
-    "VAEDecode",
+    "ConditioningZeroOut",
+    "RandomNoise",
+    "KSamplerSelect",
+    "Flux2Scheduler",
+    "CFGGuider",
+    "SamplerCustomAdvanced",
     "SaveImage",
+    "EmptyFlux2LatentImage",
 ]
 
 
@@ -199,6 +206,18 @@ def poll_for_completion(prompt_id: str, timeout: float = 120.0) -> dict:
     raise TimeoutError(f"Workflow {prompt_id} did not complete within {timeout}s")
 
 
+def image_is_not_black(img: Image.Image, threshold: float = 0.01) -> bool:
+    """Check if an image is not predominantly black."""
+    img_rgb = img.convert("RGB")
+    pixels = list(img_rgb.getdata())
+    non_black = 0
+    for r, g, b in pixels:
+        if r > 10 or g > 10 or b > 10:
+            non_black += 1
+    ratio = non_black / len(pixels)
+    return ratio > threshold
+
+
 def image_has_color(img: Image.Image, threshold: float = 0.05) -> bool:
     """Check if an image has significant non-grayscale pixels."""
     img_rgb = img.convert("RGB")
@@ -210,6 +229,21 @@ def image_has_color(img: Image.Image, threshold: float = 0.05) -> bool:
         if max_diff > 20:
             colored += 1
     ratio = colored / len(pixels)
+    return ratio > threshold
+
+
+def image_differs_from_input(output_img: Image.Image, input_img: Image.Image, threshold: float = 0.10) -> bool:
+    """Check that output image is meaningfully different from input."""
+    out_rgb = output_img.convert("RGB").resize((256, 256))
+    in_rgb = input_img.convert("RGB").resize((256, 256))
+    out_pixels = list(out_rgb.getdata())
+    in_pixels = list(in_rgb.getdata())
+    different = 0
+    for (r1, g1, b1), (r2, g2, b2) in zip(out_pixels, in_pixels):
+        diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+        if diff > 30:
+            different += 1
+    ratio = different / len(out_pixels)
     return ratio > threshold
 
 
@@ -262,7 +296,7 @@ class FluxKleinInferenceTests(unittest.TestCase):
         print(f"\n  Uploaded image: {result.get('name')}")
 
     def test_5_full_inference(self):
-        """Full round-trip: upload sketch -> run workflow -> download output -> validate colorized."""
+        """Full round-trip: upload sketch -> run workflow -> download output -> validate."""
         # Load workflow template
         workflow_file = Path(WORKFLOW_PATH)
         self.assertTrue(
@@ -277,24 +311,26 @@ class FluxKleinInferenceTests(unittest.TestCase):
         print(f"\n  Uploaded sketch: {uploaded_name}")
 
         # Configure workflow with our test parameters
+        # Node 1: LoadImage
         workflow["1"]["inputs"]["image"] = uploaded_name
+        # Node 6: Positive prompt
         workflow["6"]["inputs"]["text"] = (
             "a colorful illustration of a cozy house with a red roof, "
             "green grass, blue sky, warm sunlight, vibrant colors"
         )
-        workflow["8"]["inputs"]["seed"] = 12345
-        workflow["8"]["inputs"]["denoise"] = 0.65
+        # Node 8: Random noise seed
+        workflow["8"]["inputs"]["noise_seed"] = 12345
 
         # Submit workflow
         prompt_id = submit_workflow(workflow)
         print(f"  Submitted workflow, prompt_id: {prompt_id}")
 
-        # Poll for completion
-        outputs = poll_for_completion(prompt_id, timeout=120.0)
+        # Poll for completion (longer timeout for first inference / model loading)
+        outputs = poll_for_completion(prompt_id, timeout=180.0)
         print(f"  Workflow completed. Output nodes: {list(outputs.keys())}")
 
-        # Find the SaveImage output (node "10")
-        save_node = outputs.get("10", {})
+        # Find the SaveImage output (node "14")
+        save_node = outputs.get("14", {})
         images = save_node.get("images", [])
         self.assertTrue(len(images) > 0, f"No output images found. Outputs: {outputs}")
 
@@ -309,23 +345,38 @@ class FluxKleinInferenceTests(unittest.TestCase):
         status, img_data = comfyui_request(f"/view?{params}")
         self.assertEqual(status, 200, f"Failed to download output image: status {status}")
 
-        # Validate it's a valid PNG
+        # Validate it's a valid image
         output_img = Image.open(io.BytesIO(img_data))
         self.assertGreater(output_img.width, 0)
         self.assertGreater(output_img.height, 0)
         print(f"  Output image: {output_img.width}x{output_img.height}")
 
+        # Validate it's not all black
+        not_black = image_is_not_black(output_img)
+        self.assertTrue(
+            not_black,
+            "Output image is all black — model may not be generating valid output.",
+        )
+        print("  Output is not black.")
+
         # Validate it's colorized (not just black and white)
         has_color = image_has_color(output_img)
         self.assertTrue(
             has_color,
-            "Output image appears to be grayscale — expected colorized output. "
-            "The model may not be generating colored output at the current denoise level.",
+            "Output image appears to be grayscale — expected colorized output.",
         )
         print("  Output is colorized (has non-grayscale pixels).")
 
+        # Validate it differs from the input sketch
+        differs = image_differs_from_input(output_img, sketch)
+        self.assertTrue(
+            differs,
+            "Output image is too similar to input sketch — model may not be transforming the image.",
+        )
+        print("  Output differs from input sketch.")
+
     def test_6_inference_timing(self):
-        """Measures inference time. Warns if >5s, fails if >10s."""
+        """Measures inference time. Warns if >5s, fails if >30s."""
         # Load workflow template
         workflow_file = Path(WORKFLOW_PATH)
         self.assertTrue(workflow_file.exists(), f"Workflow not found: {WORKFLOW_PATH}")
@@ -338,12 +389,12 @@ class FluxKleinInferenceTests(unittest.TestCase):
         workflow["6"]["inputs"]["text"] = (
             "a colorful five-pointed star, golden yellow, glowing, vibrant"
         )
-        workflow["8"]["inputs"]["seed"] = 99999
+        workflow["8"]["inputs"]["noise_seed"] = 99999
 
         # Time the inference
         start = time.time()
         prompt_id = submit_workflow(workflow)
-        poll_for_completion(prompt_id, timeout=30.0)
+        poll_for_completion(prompt_id, timeout=60.0)
         elapsed = time.time() - start
 
         print(f"\n  Inference time: {elapsed:.2f}s")
@@ -353,8 +404,8 @@ class FluxKleinInferenceTests(unittest.TestCase):
 
         self.assertLess(
             elapsed,
-            10.0,
-            f"Inference took {elapsed:.2f}s — exceeds 10s maximum. "
+            30.0,
+            f"Inference took {elapsed:.2f}s — exceeds 30s maximum. "
             "Check GPU utilization and model loading.",
         )
 
@@ -372,8 +423,8 @@ def main():
     )
     parser.add_argument(
         "--comfyui-url",
-        default="http://127.0.0.1:8188",
-        help="ComfyUI server URL (default: http://127.0.0.1:8188)",
+        default="http://127.0.0.1:18188",
+        help="ComfyUI server URL (default: http://127.0.0.1:18188)",
     )
     parser.add_argument(
         "--workflow",

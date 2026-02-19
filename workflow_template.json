@@ -24,7 +24,7 @@
   "4": {
     "class_type": "UNETLoader",
     "inputs": {
-      "unet_name": "flux-2-klein-4b-fp8.safetensors",
+      "unet_name": "flux-2-klein-4b.safetensors",
       "weight_dtype": "default"
     },
     "_meta": { "title": "UNET Loader (FLUX Klein 4B FP8)" }
@@ -46,41 +46,68 @@
     "_meta": { "title": "Positive Prompt" }
   },
   "7": {
-    "class_type": "CLIPTextEncode",
+    "class_type": "ConditioningZeroOut",
     "inputs": {
-      "text": "",
-      "clip": ["5", 0]
+      "conditioning": ["6", 0]
     },
-    "_meta": { "title": "Negative Prompt (empty)" }
+    "_meta": { "title": "Negative (Zeroed Out)" }
   },
   "8": {
-    "class_type": "KSampler",
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 42
+    },
+    "_meta": { "title": "Random Noise" }
+  },
+  "9": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "_meta": { "title": "Sampler Select" }
+  },
+  "10": {
+    "class_type": "Flux2Scheduler",
+    "inputs": {
+      "steps": 4,
+      "width": 1024,
+      "height": 1024
+    },
+    "_meta": { "title": "Flux2 Scheduler" }
+  },
+  "11": {
+    "class_type": "CFGGuider",
     "inputs": {
       "model": ["4", 0],
       "positive": ["6", 0],
       "negative": ["7", 0],
-      "latent_image": ["3", 0],
-      "seed": 42,
-      "steps": 4,
-      "cfg": 1.0,
-      "sampler_name": "euler",
-      "scheduler": "simple",
-      "denoise": 0.65
+      "cfg": 1.0
     },
-    "_meta": { "title": "KSampler" }
+    "_meta": { "title": "CFG Guider" }
   },
-  "9": {
+  "12": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": ["8", 0],
+      "guider": ["11", 0],
+      "sampler": ["9", 0],
+      "sigmas": ["10", 0],
+      "latent_image": ["3", 0]
+    },
+    "_meta": { "title": "Sampler Custom Advanced" }
+  },
+  "13": {
     "class_type": "VAEDecode",
     "inputs": {
-      "samples": ["8", 0],
+      "samples": ["12", 0],
       "vae": ["2", 0]
     },
     "_meta": { "title": "VAE Decode" }
   },
-  "10": {
+  "14": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": ["9", 0],
+      "images": ["13", 0],
       "filename_prefix": "test_output"
     },
     "_meta": { "title": "Save Image" }

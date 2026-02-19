@@ -2,11 +2,12 @@
 
 ## Vast.ai Instance
 
-- **SSH**: `ssh -p 21151 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@74.48.78.46`
-- **GPU**: NVIDIA GeForce RTX 4090 (24 GB VRAM)
+- **SSH**: `ssh -p 10142 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@77.33.143.182`
+- **GPU**: NVIDIA GeForce RTX 4090 (24 GB VRAM) — HEALTHY (passed all health checks)
 - **ComfyUI**: Internal port `18188` (NOT 8188 — that goes through an auth proxy)
-- **ComfyUI version**: Updated to v0.14.1 (latest master as of 2026-02-19)
-- **PyTorch**: 2.9.1+cu128, CUDA 12.8
+- **PyTorch**: 2.10.0+cu130
+- **CUDA Driver**: 13.0 (580.105.08)
+- **Previous instance** (74.48.78.46:21151): DEFECTIVE GPU — see Issue #7
 
 ## Issues Encountered
 
@@ -107,16 +108,43 @@ chmod 600 ~/.ssh/authorized_keys
 - Both from [Comfy-Org/flux2-klein-4B](https://huggingface.co/Comfy-Org/flux2-klein-4B) (BF16, ~7.75 GB)
 - FP8 version from black-forest-labs also available (~4 GB) but was producing NaN
 
-## Model Files on Instance
+### 7. GPU Hardware Defect (CRITICAL — Instance Unusable)
+
+**Problem**: All inference produces black output images regardless of model, workflow, or PyTorch version.
+
+**Root cause**: The RTX 4090 on this Vast.ai instance has a hardware defect. CUDA kernels fail to write ~0.06% of elements in large tensors (>12800 elements / ~50KB).
+
+**Proof**: Pre-initialized tensor with sentinel value -999.0, computed `2.0 * 3.0` on GPU, found -999.0 (unwritten) values in results:
+```
+NON-DETERMINISTIC: Different elements fail on each run (race condition)
+  Always fail: 24 elements, sometimes fail: up to 80+ additional
+  Threshold: tensors > ~12800 elements (~50KB)
+  Affects: element-wise multiply, matmul, F.linear, SDPA attention
+```
+
+**Not a software issue**: Persists across PyTorch 2.9.1+cu128 and 2.10.0+cu130. GPU stats are normal (25W idle, no throttling, no ECC errors).
+
+**Resolution**: Must rent a different Vast.ai instance with a working GPU.
+
+### 8. torch.isnan() Returns Garbage on CUDA
+
+**Problem**: `torch.isnan(tensor).sum().item()` returns nonsense values on CUDA tensors (e.g., 8304 when actual count is 0, or -747742983001245043).
+
+**Workaround**: Always move to CPU before checking: `torch.isnan(tensor.detach().cpu().float()).sum().item()`, or use `(x != x).sum().item()`.
+
+**Note**: Likely related to the GPU hardware defect (Issue #7).
+
+## Model Files
 
 ```
 /workspace/ComfyUI/models/
   diffusion_models/
-    flux-2-klein-4b-fp8.safetensors  (3.8 GB, FP8 from black-forest-labs)
-    flux-2-klein-4b.safetensors      (7.3 GB, BF16 from Comfy-Org)
+    flux-2-klein-4b.safetensors      (7.75 GB, BF16 from Comfy-Org) ← DEFAULT
   text_encoders/
-    qwen_3_4b.safetensors            (7.5 GB)
+    qwen_3_4b.safetensors            (7.5 GB, from Comfy-Org/z_image_turbo)
   vae/
-    flux2-vae.safetensors            (321 MB)
-    ae.safetensors                   (335 MB, FLUX.1 VAE - INCOMPATIBLE)
+    flux2-vae.safetensors            (321 MB, from Comfy-Org/flux2-dev)
 ```
+
+**Note**: FP8 model (`flux-2-klein-4b-fp8.safetensors`, 3.8 GB) was tried but produced
+"invalid value in cast" warnings. Use BF16 with `weight_dtype: "default"` instead.
