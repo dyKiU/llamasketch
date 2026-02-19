@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import random
 import urllib.parse
 from pathlib import Path
 from typing import Callable, Optional
@@ -64,9 +65,8 @@ class ComfyUIClient:
         wf["1"]["inputs"]["image"] = image_filename
         # Node 6: Positive prompt
         wf["6"]["inputs"]["text"] = prompt
-        # Node 8: RandomNoise seed
-        if seed is not None:
-            wf["8"]["inputs"]["noise_seed"] = seed
+        # Node 8: RandomNoise seed (always set to avoid ComfyUI caching)
+        wf["8"]["inputs"]["noise_seed"] = seed if seed is not None else random.randint(0, 2**53)
         # Node 10: Flux2Scheduler steps
         wf["10"]["inputs"]["steps"] = steps
         # Node 14: SaveImage prefix
