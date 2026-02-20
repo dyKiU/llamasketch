@@ -354,6 +354,10 @@ let currentMode = 'presets'; // 'presets' | 'upload' | 'live'
 // Variety batch state
 let varietyJobs = [];       // Array of { jobId, status, pollTimer, thumbEl }
 const VARIETY_COUNT = 8;
+const VARIETY_IDLE_EXTRA = 8;   // Additional variations after idle
+const VARIETY_IDLE_MS = 10000;  // 10 seconds idle before extra batch
+let varietyIdleTimer = null;
+let varietyCapturedInputs = null; // { base64, prompt, steps, denoise } saved from first batch
 
 // ========================================================================
 // Queue Manager (synced copy of src/queue-manager.ts logic)
@@ -729,6 +733,32 @@ function showImageContextMenu(e, imageUrl) {
   });
   menu.appendChild(item);
 
+  // "Cancel all generations" option — show when there are active jobs
+  const hasActiveJobs = varietyJobs.some(j => j.status === 'pending' || j.status === 'polling')
+    || varietyIdleTimer
+    || queueActiveCount(liveQueue) > 0;
+  if (hasActiveJobs) {
+    const cancelItem = document.createElement('div');
+    cancelItem.className = 'ctx-menu-item';
+    cancelItem.style.color = '#d32f2f';
+    cancelItem.textContent = 'Cancel all generations';
+    cancelItem.addEventListener('click', () => {
+      dismissCtxMenu();
+      abortVarietyBatch();
+      // Also cancel live queue jobs
+      for (const entry of liveQueue.submissions) {
+        if (entry.pollTimer) clearInterval(entry.pollTimer);
+        if (entry.status === 'pending' || entry.status === 'polling') {
+          fetch(`${API}/api/cancel/${entry.jobId}`, { method: 'POST' }).catch(() => {});
+        }
+      }
+      liveQueue.submissions = [];
+      updateQueueStatus();
+      setProgress('cancelled');
+    });
+    menu.appendChild(cancelItem);
+  }
+
   // Position at cursor, clamp to viewport
   menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
   menu.style.top = Math.min(e.clientY, window.innerHeight - 50) + 'px';
@@ -1025,23 +1055,28 @@ function updateQueueStatus() {
 function startVarietyBatch() {
   abortVarietyBatch();
 
-  // Capture current inputs
+  // Capture current inputs for this batch (and potential idle extension)
   const dataUrl = canvasToWhiteBgDataURL();
-  const base64 = dataUrl.split(',')[1];
-  const prompt = $('#promptInput')?.value?.trim() || undefined;
-  const steps = parseInt($('#stepsInput').value);
-  const denoise = parseInt($('#denoiseInput').value) / 100;
+  varietyCapturedInputs = {
+    base64: dataUrl.split(',')[1],
+    prompt: $('#promptInput')?.value?.trim() || undefined,
+    steps: parseInt($('#stepsInput').value),
+    denoise: parseInt($('#denoiseInput').value) / 100,
+  };
 
   // Show strip and clear contents
-  const strip = $('#variationsStrip');
-  const scroll = $('#variationsScroll');
-  const spinner = $('#variationsSpinner');
-  strip.classList.add('active');
-  scroll.innerHTML = '';
-  spinner.textContent = `Generating... 0/${VARIETY_COUNT}`;
+  $('#variationsStrip').classList.add('active');
+  $('#variationsScroll').innerHTML = '';
 
-  // Create placeholders and fire requests
-  for (let i = 0; i < VARIETY_COUNT; i++) {
+  fireVarietyJobs(VARIETY_COUNT);
+}
+
+function fireVarietyJobs(count) {
+  const { base64, prompt, steps, denoise } = varietyCapturedInputs;
+  const scroll = $('#variationsScroll');
+  const startIdx = varietyJobs.length;
+
+  for (let i = 0; i < count; i++) {
     const thumbEl = document.createElement('div');
     thumbEl.className = 'variations-thumb pending';
     scroll.appendChild(thumbEl);
@@ -1072,21 +1107,33 @@ function startVarietyBatch() {
         varietyJobs[idx].thumbEl.remove();
         updateVarietySpinner();
       }
-    })(i);
+    })(startIdx + i);
   }
 
-  function updateVarietySpinner() {
-    const done = varietyJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
-    if (done >= VARIETY_COUNT) {
-      spinner.textContent = '';
-    } else {
-      const completed = varietyJobs.filter(j => j.status === 'completed').length;
-      spinner.textContent = `Generating... ${completed}/${VARIETY_COUNT}`;
+  updateVarietySpinner();
+}
+
+function updateVarietySpinner() {
+  const spinner = $('#variationsSpinner');
+  const total = varietyJobs.length;
+  const completed = varietyJobs.filter(j => j.status === 'completed').length;
+  const done = varietyJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
+
+  if (done >= total) {
+    spinner.textContent = '';
+    // If first batch just finished and we haven't extended yet, start idle timer
+    if (total === VARIETY_COUNT && varietyCapturedInputs) {
+      if (varietyIdleTimer) clearTimeout(varietyIdleTimer);
+      varietyIdleTimer = setTimeout(() => {
+        varietyIdleTimer = null;
+        if (varietyJobs.length === VARIETY_COUNT && varietyCapturedInputs) {
+          fireVarietyJobs(VARIETY_IDLE_EXTRA);
+        }
+      }, VARIETY_IDLE_MS);
     }
+  } else {
+    spinner.textContent = `Generating... ${completed}/${total}`;
   }
-
-  // Expose updater for pollVarietyJob
-  startVarietyBatch._updateSpinner = updateVarietySpinner;
 }
 
 async function pollVarietyJob(idx) {
@@ -1124,13 +1171,13 @@ async function pollVarietyJob(idx) {
       job.thumbEl.addEventListener('contextmenu', (e) => showImageContextMenu(e, url));
 
       addToHistory(url);
-      if (startVarietyBatch._updateSpinner) startVarietyBatch._updateSpinner();
+      updateVarietySpinner();
 
     } else if (data.status === 'failed' || data.status === 'cancelled') {
       job.status = 'failed';
       if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
       job.thumbEl.remove();
-      if (startVarietyBatch._updateSpinner) startVarietyBatch._updateSpinner();
+      updateVarietySpinner();
     }
   } catch (e) {
     job.status = 'failed';
@@ -1141,6 +1188,7 @@ async function pollVarietyJob(idx) {
 }
 
 function abortVarietyBatch() {
+  if (varietyIdleTimer) { clearTimeout(varietyIdleTimer); varietyIdleTimer = null; }
   for (const job of varietyJobs) {
     if (job.pollTimer) clearInterval(job.pollTimer);
     if (job.jobId && (job.status === 'pending' || job.status === 'polling')) {
@@ -1148,7 +1196,7 @@ function abortVarietyBatch() {
     }
   }
   varietyJobs = [];
-  startVarietyBatch._updateSpinner = null;
+  varietyCapturedInputs = null;
   $('#variationsStrip').classList.remove('active');
   $('#variationsScroll').innerHTML = '';
   $('#variationsSpinner').textContent = '';
