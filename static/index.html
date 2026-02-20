@@ -276,6 +276,10 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
         <button class="tool-btn" id="loadSketchBtn">Load
           <input type="file" id="loadSketchInput" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
         </button>
+        <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
+        <button class="tool-btn" id="fitStretchBtn" data-fit="stretch">Stretch</button>
+        <button class="tool-btn active" id="fitFillBtn" data-fit="fill">Fill</button>
+        <button class="tool-btn" id="fitFitBtn" data-fit="fit">Fit</button>
       </div>
       <div class="form-group" id="canvasOverlayControls" style="display:none">
         <label>Result overlay</label>
@@ -299,6 +303,10 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
       <div class="range-row">
         <input type="range" id="denoiseInput" min="0" max="100" value="75" step="5">
         <span class="range-value" id="denoiseValue">0.75</span>
+      </div>
+      <div id="creativityRangeInfo" style="display:none;font-size:0.75rem;color:var(--text-muted);margin-top:4px;align-items:center;gap:8px">
+        <span id="creativityRangeText"></span>
+        <button class="tool-btn" id="creativityResetBtn" style="padding:2px 8px;font-size:0.7rem">Reset range</button>
       </div>
     </div>
 
@@ -373,6 +381,8 @@ let selectedSketch = null;   // preset id string
 let uploadedBase64 = null;   // base64 string for uploaded image
 let polling = null;
 let currentMode = 'presets'; // 'presets' | 'upload' | 'live'
+let fitMode = 'fill'; // 'stretch' | 'fill' | 'fit'
+let creativityRange = null; // { min, max } in 0.00–1.00, or null = full range
 
 // Variety batch state
 let varietyJobs = [];       // Array of { jobId, status, pollTimer, thumbEl }
@@ -381,6 +391,7 @@ const VARIETY_IDLE_EXTRA = 8;   // Additional variations after idle
 const VARIETY_IDLE_MS = 10000;  // 10 seconds idle before extra batch
 let varietyIdleTimer = null;
 let varietyCapturedInputs = null; // { base64, prompt, steps, denoise } saved from first batch
+let varietyBatchGen = 0;         // generation counter — incremented on each new batch
 
 // ========================================================================
 // Queue Manager (synced copy of src/queue-manager.ts logic)
@@ -617,13 +628,68 @@ function showSketchPreview(src) {
 }
 
 // ========================================================================
+// Creativity range mapping
+// ========================================================================
+function getEffectiveRange() {
+  if (!creativityRange) return { min: 0, max: 1 };
+  const pad = 0.05;
+  let min = Math.max(0, creativityRange.min - pad);
+  let max = Math.min(1, creativityRange.max + pad);
+  if (max - min < 0.10) {
+    const mid = (min + max) / 2;
+    min = Math.max(0, mid - 0.05);
+    max = Math.min(1, mid + 0.05);
+  }
+  return { min, max };
+}
+
+function getDenoiseValue() {
+  const slider = parseInt($('#denoiseInput').value) / 100;
+  const { min, max } = getEffectiveRange();
+  return min + slider * (max - min);
+}
+
+function trackCreativity(val) {
+  if (!creativityRange) {
+    creativityRange = { min: val, max: val };
+  } else {
+    creativityRange.min = Math.min(creativityRange.min, val);
+    creativityRange.max = Math.max(creativityRange.max, val);
+  }
+  localStorage.setItem('creativityRange', JSON.stringify(creativityRange));
+  updateCreativityRangeUI();
+}
+
+function updateCreativityRangeUI() {
+  const el = $('#creativityRangeInfo');
+  if (!creativityRange) {
+    el.style.display = 'none';
+    return;
+  }
+  const { min, max } = getEffectiveRange();
+  $('#creativityRangeText').textContent = `Slider range: ${min.toFixed(2)} \u2013 ${max.toFixed(2)}`;
+  el.style.display = 'flex';
+  // Also refresh the displayed value
+  $('#denoiseValue').textContent = getDenoiseValue().toFixed(2);
+}
+
+// ========================================================================
 // Sliders
 // ========================================================================
+$('#creativityResetBtn').addEventListener('click', () => {
+  const currentVal = getDenoiseValue();
+  creativityRange = null;
+  localStorage.removeItem('creativityRange');
+  $('#denoiseInput').value = Math.round(currentVal * 100);
+  $('#denoiseValue').textContent = currentVal.toFixed(2);
+  updateCreativityRangeUI();
+});
+
 $('#stepsInput').addEventListener('input', (e) => {
   $('#stepsValue').textContent = e.target.value;
 });
 $('#denoiseInput').addEventListener('input', (e) => {
-  $('#denoiseValue').textContent = (e.target.value / 100).toFixed(2);
+  $('#denoiseValue').textContent = getDenoiseValue().toFixed(2);
   scheduleSubmit();
 });
 $('#strokeWidthInput').addEventListener('input', (e) => {
@@ -667,8 +733,9 @@ async function startGeneration() {
 
   const prompt = $('#promptInput').value.trim() || undefined;
   const steps = parseInt($('#stepsInput').value);
-  const denoise = parseInt($('#denoiseInput').value) / 100;
+  const denoise = getDenoiseValue();
   const hd = $('#hdToggle').checked;
+  trackCreativity(denoise);
 
   const btn = $('#generateBtn');
   btn.disabled = true;
@@ -882,8 +949,7 @@ function confirmUseAsSketch(imageUrl) {
 function applyAsSketchInput(imageUrl) {
   const img = new Image();
   img.onload = () => {
-    ctx.clearRect(0, 0, 512, 512);
-    ctx.drawImage(img, 0, 0, 512, 512);
+    drawImageToCanvas(img);
     hasStrokes = true;
     switchMode('live');
     updateOverlayImage();
@@ -985,6 +1051,36 @@ $('#saveSketchBtn').addEventListener('click', () => {
   link.click();
 });
 
+// Fit-mode buttons
+document.querySelectorAll('[data-fit]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    fitMode = btn.dataset.fit;
+    document.querySelectorAll('[data-fit]').forEach(b => b.classList.toggle('active', b.dataset.fit === fitMode));
+  });
+});
+
+// Draw an image to the canvas respecting current fitMode
+function drawImageToCanvas(img) {
+  const cw = 512, ch = 512;
+  ctx.clearRect(0, 0, cw, ch);
+
+  if (fitMode === 'stretch') {
+    ctx.drawImage(img, 0, 0, cw, ch);
+  } else if (fitMode === 'fill') {
+    const scale = Math.max(cw / img.width, ch / img.height);
+    const sw = cw / scale, sh = ch / scale;
+    const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+  } else {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cw, ch);
+    const scale = Math.min(cw / img.width, ch / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    const dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+}
+
 // Load sketch from disk
 $('#loadSketchBtn').style.position = 'relative';
 $('#loadSketchInput').addEventListener('change', (e) => {
@@ -994,8 +1090,7 @@ $('#loadSketchInput').addEventListener('change', (e) => {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
-      ctx.clearRect(0, 0, 512, 512);
-      ctx.drawImage(img, 0, 0, 512, 512);
+      drawImageToCanvas(img);
       hasStrokes = true;
       updateOverlayImage();
       scheduleSubmit();
@@ -1091,7 +1186,8 @@ async function submitCanvasToQueue() {
 
   const prompt = $('#promptInput')?.value?.trim() || undefined;
   const steps = parseInt($('#stepsInput').value);
-  const denoise = parseInt($('#denoiseInput').value) / 100;
+  const denoise = getDenoiseValue();
+  trackCreativity(denoise);
 
   try {
     const res = await fetch(`${API}/api/generate`, {
@@ -1187,6 +1283,7 @@ function updateQueueStatus() {
 // ========================================================================
 function startVarietyBatch() {
   abortVarietyBatch();
+  varietyBatchGen++;
 
   // Capture current inputs for this batch (and potential idle extension)
   const dataUrl = canvasToWhiteBgDataURL();
@@ -1194,7 +1291,7 @@ function startVarietyBatch() {
     base64: dataUrl.split(',')[1],
     prompt: $('#promptInput')?.value?.trim() || undefined,
     steps: parseInt($('#stepsInput').value),
-    denoise: parseInt($('#denoiseInput').value) / 100,
+    denoise: getDenoiseValue(),
   };
 
   // Show strip and clear contents
@@ -1207,7 +1304,7 @@ function startVarietyBatch() {
 function fireVarietyJobs(count) {
   const { base64, prompt, steps, denoise } = varietyCapturedInputs;
   const scroll = $('#variationsScroll');
-  const startIdx = varietyJobs.length;
+  const gen = varietyBatchGen; // capture generation for stale-check
 
   for (let i = 0; i < count; i++) {
     const thumbEl = document.createElement('div');
@@ -1217,30 +1314,33 @@ function fireVarietyJobs(count) {
     const job = { jobId: null, status: 'pending', pollTimer: null, thumbEl };
     varietyJobs.push(job);
 
-    // Fire request (IIFE to capture index)
-    (async (idx) => {
+    // Fire request — capture job object + generation to detect stale batches
+    (async (j) => {
       try {
         const res = await fetch(`${API}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sketch: base64, prompt, steps, denoise, hd: false }),
         });
+        if (gen !== varietyBatchGen) return; // batch was replaced
         if (!res.ok) {
-          varietyJobs[idx].status = 'failed';
-          varietyJobs[idx].thumbEl.remove();
+          j.status = 'failed';
+          j.thumbEl.remove();
           updateVarietySpinner();
           return;
         }
         const data = await res.json();
-        varietyJobs[idx].jobId = data.job_id;
-        varietyJobs[idx].status = 'polling';
-        varietyJobs[idx].pollTimer = setInterval(() => pollVarietyJob(idx), 1000);
+        if (gen !== varietyBatchGen) return; // batch was replaced
+        j.jobId = data.job_id;
+        j.status = 'polling';
+        j.pollTimer = setInterval(() => pollVarietyJob(j, gen), 1000);
       } catch (e) {
-        varietyJobs[idx].status = 'failed';
-        varietyJobs[idx].thumbEl.remove();
+        if (gen !== varietyBatchGen) return; // batch was replaced
+        j.status = 'failed';
+        j.thumbEl.remove();
         updateVarietySpinner();
       }
-    })(startIdx + i);
+    })(job);
   }
 
   updateVarietySpinner();
@@ -1269,9 +1369,13 @@ function updateVarietySpinner() {
   }
 }
 
-async function pollVarietyJob(idx) {
-  const job = varietyJobs[idx];
-  if (!job || !job.jobId) return;
+async function pollVarietyJob(job, gen) {
+  // Guard: stop polling if batch was replaced or job already settled
+  if (gen !== varietyBatchGen || !job || !job.jobId
+      || job.status === 'completed' || job.status === 'failed') {
+    if (job && job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
+    return;
+  }
 
   try {
     const res = await fetch(`${API}/api/status/${job.jobId}`);
@@ -1316,7 +1420,7 @@ async function pollVarietyJob(idx) {
     job.status = 'failed';
     if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
     job.thumbEl.remove();
-    if (startVarietyBatch._updateSpinner) startVarietyBatch._updateSpinner();
+    updateVarietySpinner();
   }
 }
 
@@ -1470,6 +1574,10 @@ pollGpuStats();
 setInterval(pollGpuStats, 1000);
 loadSketches();
 loadWordList().then(initPrompt);
+// Load saved creativity range
+const savedRange = localStorage.getItem('creativityRange');
+if (savedRange) { creativityRange = JSON.parse(savedRange); }
+updateCreativityRangeUI();
 // Default to live sketch mode
 switchMode('live');
 </script>
