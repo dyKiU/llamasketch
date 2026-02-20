@@ -164,6 +164,27 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 .canvas-toolbar .range-row { flex: 1; min-width: 120px; }
 .queue-status { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
 
+/* Context menu */
+.ctx-menu { position: fixed; z-index: 200; background: var(--panel-bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 0; box-shadow: 0 4px 16px rgba(0,0,0,0.2); min-width: 180px; }
+.ctx-menu-item { padding: 8px 16px; font-size: 0.85rem; cursor: pointer; color: var(--text); }
+.ctx-menu-item:hover { background: var(--preview-bg); }
+
+/* Confirm modal */
+.confirm-modal { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; }
+.confirm-dialog { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 24px; max-width: 360px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.confirm-dialog p { font-size: 0.95rem; margin-bottom: 8px; color: var(--text); }
+.confirm-dialog .confirm-preview { width: 100%; aspect-ratio: 1; max-width: 200px; border-radius: 6px;
+  border: 1px solid var(--border); object-fit: cover; margin: 12px auto; display: block; }
+.confirm-dialog .confirm-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.confirm-dialog .confirm-btn { padding: 8px 20px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); }
+.confirm-dialog .confirm-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.confirm-dialog .confirm-btn.primary:hover { background: var(--accent-hover); }
+.confirm-dialog .confirm-btn.secondary { background: var(--input-bg); color: var(--text); }
+.confirm-dialog .confirm-btn.secondary:hover { background: var(--preview-bg); }
+
 /* Responsive */
 @media (max-width: 768px) {
   main { flex-direction: column; }
@@ -282,6 +303,9 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 
   <div class="panel panel-right">
     <div class="section-label">Output</div>
+    <div class="mode-tabs" aria-hidden="true" style="visibility:hidden;pointer-events:none">
+      <button class="mode-tab">&nbsp;</button>
+    </div>
     <div class="output-area">
       <div class="output-preview" id="outputPreview">
         <span class="preview-placeholder">Result will appear here</span>
@@ -680,7 +704,100 @@ function addToHistory(imageUrl) {
   img.src = imageUrl;
   thumb.appendChild(img);
   thumb.addEventListener('click', () => openLightbox(imageUrl));
+  thumb.addEventListener('contextmenu', (e) => showImageContextMenu(e, imageUrl));
   scroll.prepend(thumb);
+}
+
+// ========================================================================
+// Context menu + confirm modal for "Use as input sketch"
+// ========================================================================
+let activeCtxMenu = null;
+
+function showImageContextMenu(e, imageUrl) {
+  e.preventDefault();
+  dismissCtxMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+
+  const item = document.createElement('div');
+  item.className = 'ctx-menu-item';
+  item.textContent = 'Use as input sketch';
+  item.addEventListener('click', () => {
+    dismissCtxMenu();
+    confirmUseAsSketch(imageUrl);
+  });
+  menu.appendChild(item);
+
+  // Position at cursor, clamp to viewport
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 50) + 'px';
+  document.body.appendChild(menu);
+  activeCtxMenu = menu;
+
+  // Dismiss on click elsewhere or Escape
+  setTimeout(() => {
+    document.addEventListener('click', dismissCtxMenu, { once: true });
+    document.addEventListener('contextmenu', dismissCtxMenu, { once: true });
+  }, 0);
+}
+
+function dismissCtxMenu() {
+  if (activeCtxMenu) {
+    activeCtxMenu.remove();
+    activeCtxMenu = null;
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') dismissCtxMenu();
+});
+
+function confirmUseAsSketch(imageUrl) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-modal';
+
+  const dialog = document.createElement('div');
+  dialog.className = 'confirm-dialog';
+  dialog.innerHTML = `
+    <p><strong>Use as input sketch?</strong></p>
+    <p style="font-size:0.8rem;color:var(--text-muted)">This will replace the current canvas and switch to Live Sketch mode.</p>
+    <img class="confirm-preview" src="${imageUrl}" alt="Preview">
+    <div class="confirm-buttons">
+      <button class="confirm-btn secondary" data-action="cancel">Cancel</button>
+      <button class="confirm-btn primary" data-action="confirm">Use as sketch</button>
+    </div>
+  `;
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  // Close on backdrop click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  dialog.querySelector('[data-action="cancel"]').addEventListener('click', () => overlay.remove());
+  dialog.querySelector('[data-action="confirm"]').addEventListener('click', () => {
+    overlay.remove();
+    applyAsSketchInput(imageUrl);
+  });
+
+  // Escape to close
+  const onKey = (e) => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+}
+
+function applyAsSketchInput(imageUrl) {
+  const img = new Image();
+  img.onload = () => {
+    ctx.clearRect(0, 0, 512, 512);
+    ctx.drawImage(img, 0, 0, 512, 512);
+    hasStrokes = true;
+    switchMode('live');
+    updateOverlayImage();
+    scheduleSubmit();
+  };
+  img.src = imageUrl;
 }
 
 function openLightbox(src) {
@@ -1004,6 +1121,7 @@ async function pollVarietyJob(idx) {
         document.querySelectorAll('.variations-thumb').forEach(t => t.classList.remove('selected'));
         job.thumbEl.classList.add('selected');
       });
+      job.thumbEl.addEventListener('contextmenu', (e) => showImageContextMenu(e, url));
 
       addToHistory(url);
       if (startVarietyBatch._updateSpinner) startVarietyBatch._updateSpinner();
@@ -1061,6 +1179,13 @@ function updateThemeIcon() {
 const overlayImg = document.createElement('img');
 overlayImg.className = 'overlay-img';
 $('#outputPreview').appendChild(overlayImg);
+
+$('#outputPreview').addEventListener('contextmenu', (e) => {
+  const img = $('#outputPreview').querySelector('img:not(.overlay-img)');
+  if (img && img.src) {
+    showImageContextMenu(e, img.src);
+  }
+});
 
 $('#overlayOpacity').addEventListener('input', (e) => {
   const val = parseInt(e.target.value);
