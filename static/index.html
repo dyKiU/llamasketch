@@ -175,13 +175,14 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
       <div class="queue-status" id="queueStatus"></div>
     </div>
 
+    <!-- Prompt (always visible) -->
+    <div class="form-group">
+      <label for="promptInput">Prompt</label>
+      <textarea id="promptInput" placeholder="Describe the image you want..."></textarea>
+    </div>
+
     <!-- Shared controls (hidden in live mode) -->
     <div id="sharedControls">
-      <div class="form-group">
-        <label for="promptInput">Prompt</label>
-        <textarea id="promptInput" placeholder="Describe the image you want..."></textarea>
-      </div>
-
       <div class="form-group">
         <label>Steps</label>
         <div class="range-row">
