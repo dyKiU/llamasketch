@@ -253,6 +253,10 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
           <span class="range-value" id="strokeWidthValue">3</span>
         </div>
         <button class="tool-btn" id="clearCanvasBtn">Clear</button>
+        <button class="tool-btn" id="saveSketchBtn">Save</button>
+        <button class="tool-btn" id="loadSketchBtn">Load
+          <input type="file" id="loadSketchInput" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+        </button>
       </div>
       <div class="form-group" id="canvasOverlayControls" style="display:none">
         <label>Result overlay</label>
@@ -871,6 +875,35 @@ $('#clearCanvasBtn').addEventListener('click', () => {
   canvasOverlayImg.style.display = 'none';
   $('#canvasOverlayControls').style.display = 'none';
   abortVarietyBatch();
+});
+
+// Save sketch to disk
+$('#saveSketchBtn').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'sketch.png';
+  link.href = canvasToWhiteBgDataURL();
+  link.click();
+});
+
+// Load sketch from disk
+$('#loadSketchBtn').style.position = 'relative';
+$('#loadSketchInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, 512, 512);
+      ctx.drawImage(img, 0, 0, 512, 512);
+      hasStrokes = true;
+      updateOverlayImage();
+      scheduleSubmit();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = ''; // allow re-loading same file
 });
 
 function getCanvasPoint(e) {
