@@ -150,7 +150,15 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; align-items: flex-start
 
 /* Lightbox overlay */
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
-.lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+.lightbox img { max-width: 80vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px;
+  background: rgba(255,255,255,0.15); border: none; border-radius: 50%; color: #fff; font-size: 1.5rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.lightbox-nav:hover { background: rgba(255,255,255,0.3); }
+.lightbox-nav.prev { left: 16px; }
+.lightbox-nav.next { right: 16px; }
+.lightbox-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,0.6); font-size: 0.8rem; }
 
 /* Live Sketch canvas */
 .canvas-wrapper { width: 100%; max-width: 400px; margin-bottom: 12px; position: relative; }
@@ -834,14 +842,56 @@ function applyAsSketchInput(imageUrl) {
   img.src = imageUrl;
 }
 
+function getHistoryUrls() {
+  return Array.from($('#historyScroll').querySelectorAll('.history-thumb img')).map(img => img.src);
+}
+
 function openLightbox(src) {
+  const urls = getHistoryUrls();
+  let idx = urls.indexOf(src);
+  if (idx < 0) idx = 0;
+
   const overlay = document.createElement('div');
   overlay.className = 'lightbox';
   const img = document.createElement('img');
   img.src = src;
+
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'lightbox-nav prev';
+  prevBtn.innerHTML = '&#8249;';
+
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'lightbox-nav next';
+  nextBtn.innerHTML = '&#8250;';
+
+  const counter = document.createElement('div');
+  counter.className = 'lightbox-counter';
+
   overlay.appendChild(img);
-  overlay.addEventListener('click', () => overlay.remove());
+  overlay.appendChild(prevBtn);
+  overlay.appendChild(nextBtn);
+  overlay.appendChild(counter);
   document.body.appendChild(overlay);
+
+  function show(i) {
+    idx = (i + urls.length) % urls.length;
+    img.src = urls[idx];
+    counter.textContent = `${idx + 1} / ${urls.length}`;
+  }
+  show(idx);
+
+  prevBtn.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); });
+  nextBtn.addEventListener('click', (e) => { e.stopPropagation(); show(idx + 1); });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  const onKey = (e) => {
+    if (e.key === 'ArrowLeft') { show(idx - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { show(idx + 1); e.preventDefault(); }
+    else if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  };
+  document.addEventListener('keydown', onKey);
 }
 
 // ========================================================================
