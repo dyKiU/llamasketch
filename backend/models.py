@@ -13,6 +13,7 @@ class JobStatus(str, Enum):
     downloading = "downloading"
     completed = "completed"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class GenerateRequest(BaseModel):

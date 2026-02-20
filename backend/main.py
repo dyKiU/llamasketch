@@ -106,7 +106,7 @@ def _evict_old_jobs():
         return
     terminal = [
         j for j in jobs.values()
-        if j.status in (JobStatus.completed, JobStatus.failed)
+        if j.status in (JobStatus.completed, JobStatus.failed, JobStatus.cancelled)
     ]
     terminal.sort(key=lambda j: j.created_at)
     while len(jobs) > MAX_JOBS and terminal:
@@ -153,6 +153,8 @@ async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int,
             hd=hd,
             on_status=lambda s: setattr(job, "status", s),
         )
+        if job.status == JobStatus.cancelled:
+            return
         job.result_image = png_bytes
         job.status = JobStatus.completed
     except (ComfyUIError, TimeoutError, httpx.ConnectError) as exc:
@@ -262,6 +264,18 @@ async def job_status(job_id: str):
         error=job.error,
         elapsed_seconds=round(time.time() - job.created_at, 2),
     )
+
+
+@app.post("/api/cancel/{job_id}")
+async def cancel_job(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail=f"Unknown job: {job_id}")
+    job = jobs[job_id]
+    if job.status in (JobStatus.completed, JobStatus.failed, JobStatus.cancelled):
+        return {"job_id": job_id, "status": job.status}
+    job.status = JobStatus.cancelled
+    job.result_image = None
+    return {"job_id": job_id, "status": job.status}
 
 
 @app.get("/api/result/{job_id}")

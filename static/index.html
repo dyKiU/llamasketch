@@ -25,6 +25,14 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 /* Section labels */
 .section-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 8px; font-weight: 600; }
 
+/* Mode tabs */
+.mode-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #eee; }
+.mode-tab { padding: 8px 16px; border: none; background: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+.mode-tab:hover { color: #555; }
+.mode-tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 600; }
+.mode-content { display: none; }
+.mode-content.active { display: block; }
+
 /* Image preview areas */
 .preview-container { width: 100%; max-width: 400px; aspect-ratio: 1; background: #eee; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 16px; position: relative; }
 .preview-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -36,7 +44,11 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 .sketch-presets button { padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
 .sketch-presets button:hover { border-color: #999; background: #f0f0f0; }
 .sketch-presets button.active { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
-.upload-btn { position: relative; overflow: hidden; }
+
+/* Upload area */
+.upload-area { margin-bottom: 16px; }
+.upload-btn { position: relative; overflow: hidden; padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
+.upload-btn:hover { border-color: #999; background: #f0f0f0; }
 .upload-btn input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 /* Form controls */
@@ -80,11 +92,21 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
 .lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
 
+/* Live Sketch canvas */
+.canvas-wrapper { width: 100%; max-width: 400px; margin-bottom: 12px; }
+.canvas-wrapper canvas { width: 100%; aspect-ratio: 1; border: 2px solid #bbb; border-radius: 8px; cursor: crosshair; touch-action: none; background: #fff; display: block; }
+.canvas-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; max-width: 400px; }
+.tool-btn { padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.8rem; transition: all 0.15s; }
+.tool-btn:hover { border-color: #999; background: #f0f0f0; }
+.tool-btn.active { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
+.canvas-toolbar .range-row { flex: 1; min-width: 120px; }
+.queue-status { font-size: 0.8rem; color: #888; margin-top: 4px; }
+
 /* Responsive */
 @media (max-width: 768px) {
   main { flex-direction: column; }
   .panel-left { border-right: none; border-bottom: 1px solid #ddd; }
-  .preview-container, .output-preview, .form-group input, .form-group textarea { max-width: 100%; }
+  .preview-container, .output-preview, .form-group input, .form-group textarea, .canvas-wrapper { max-width: 100%; }
 }
 </style>
 </head>
@@ -101,44 +123,86 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 <main>
   <div class="panel panel-left">
     <div class="section-label">Input Sketch</div>
-    <div class="preview-container" id="sketchPreview">
-      <span class="preview-placeholder">Select a sketch below</span>
+
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="presets">Presets</button>
+      <button class="mode-tab" data-mode="upload">Upload</button>
+      <button class="mode-tab" data-mode="live">Live Sketch</button>
     </div>
 
-    <div class="sketch-presets" id="sketchPresets">
-      <!-- Populated by JS -->
-    </div>
-
-    <div class="form-group">
-      <label for="promptInput">Prompt</label>
-      <textarea id="promptInput" placeholder="Describe the image you want..."></textarea>
-    </div>
-
-    <div class="form-group">
-      <label>Steps</label>
-      <div class="range-row">
-        <input type="range" id="stepsInput" min="1" max="50" value="4">
-        <span class="range-value" id="stepsValue">4</span>
+    <!-- Presets mode -->
+    <div class="mode-content active" id="modePresets">
+      <div class="preview-container" id="sketchPreview">
+        <span class="preview-placeholder">Select a sketch below</span>
+      </div>
+      <div class="sketch-presets" id="sketchPresets">
+        <!-- Populated by JS -->
       </div>
     </div>
 
-    <div class="form-group">
-      <label>Creativity (low = faithful to sketch, high = more creative)</label>
-      <div class="range-row">
-        <input type="range" id="denoiseInput" min="0" max="100" value="75" step="5">
-        <span class="range-value" id="denoiseValue">0.75</span>
+    <!-- Upload mode -->
+    <div class="mode-content" id="modeUpload">
+      <div class="preview-container" id="uploadPreview">
+        <span class="preview-placeholder">Upload an image</span>
+      </div>
+      <div class="upload-area">
+        <button class="upload-btn" id="uploadBtn">
+          Choose file...
+          <input type="file" id="fileInput" accept="image/*">
+        </button>
       </div>
     </div>
 
-    <div class="form-group">
-      <label class="checkbox-row">
-        <input type="checkbox" id="hdToggle">
-        <span>HD mode <small style="color:#888">(two-pass: 512 then upscale to 1024)</small></span>
-      </label>
+    <!-- Live Sketch mode -->
+    <div class="mode-content" id="modeLive">
+      <div class="canvas-wrapper">
+        <canvas id="sketchCanvas" width="512" height="512"></canvas>
+      </div>
+      <div class="canvas-toolbar">
+        <button class="tool-btn active" id="pencilBtn" data-tool="pencil">Pencil</button>
+        <button class="tool-btn" id="eraserBtn" data-tool="eraser">Eraser</button>
+        <div class="range-row">
+          <input type="range" id="strokeWidthInput" min="1" max="30" value="3">
+          <span class="range-value" id="strokeWidthValue">3</span>
+        </div>
+        <button class="tool-btn" id="clearCanvasBtn">Clear</button>
+      </div>
+      <div class="queue-status" id="queueStatus"></div>
     </div>
 
-    <button class="generate-btn" id="generateBtn" disabled>Generate</button>
-    <div class="status-text" id="statusText"></div>
+    <!-- Shared controls (hidden in live mode) -->
+    <div id="sharedControls">
+      <div class="form-group">
+        <label for="promptInput">Prompt</label>
+        <textarea id="promptInput" placeholder="Describe the image you want..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Steps</label>
+        <div class="range-row">
+          <input type="range" id="stepsInput" min="1" max="50" value="4">
+          <span class="range-value" id="stepsValue">4</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Creativity (low = faithful to sketch, high = more creative)</label>
+        <div class="range-row">
+          <input type="range" id="denoiseInput" min="0" max="100" value="75" step="5">
+          <span class="range-value" id="denoiseValue">0.75</span>
+        </div>
+      </div>
+
+      <div class="form-group" id="hdGroup">
+        <label class="checkbox-row">
+          <input type="checkbox" id="hdToggle">
+          <span>HD mode <small style="color:#888">(two-pass: 512 then upscale to 1024)</small></span>
+        </label>
+      </div>
+
+      <button class="generate-btn" id="generateBtn" disabled>Generate</button>
+      <div class="status-text" id="statusText"></div>
+    </div>
   </div>
 
   <div class="panel panel-right">
@@ -163,12 +227,66 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 const $ = (sel) => document.querySelector(sel);
 const API = '';
 
+// ========================================================================
 // State
+// ========================================================================
 let selectedSketch = null;   // preset id string
 let uploadedBase64 = null;   // base64 string for uploaded image
 let polling = null;
+let currentMode = 'presets'; // 'presets' | 'upload' | 'live'
 
-// ---- Health check ----
+// ========================================================================
+// Queue Manager (synced copy of src/queue-manager.ts logic)
+// ========================================================================
+const MAX_QUEUE = 3;
+
+function createQueue() {
+  return { submissions: [], sequenceNumber: 0 };
+}
+
+function queueAddSubmission(queue, jobId) {
+  queue.sequenceNumber++;
+  const entry = { jobId, seqNum: queue.sequenceNumber, status: 'polling', pollTimer: null };
+  let evicted = null;
+  if (queue.submissions.length >= MAX_QUEUE) {
+    queue.submissions.sort((a, b) => a.seqNum - b.seqNum);
+    evicted = queue.submissions.shift();
+  }
+  queue.submissions.push(entry);
+  return { entry, evicted };
+}
+
+function queueShouldDisplay(queue, entry) {
+  if (entry.status !== 'completed') return false;
+  return !queue.submissions.some(e => e.seqNum > entry.seqNum && e.status === 'completed');
+}
+
+function queueFindEntry(queue, jobId) {
+  return queue.submissions.find(e => e.jobId === jobId);
+}
+
+function queueActiveCount(queue) {
+  return queue.submissions.filter(e => e.status === 'pending' || e.status === 'polling').length;
+}
+
+const liveQueue = createQueue();
+
+// ========================================================================
+// Canvas Tools (synced copy of src/canvas-tools.ts logic)
+// ========================================================================
+let toolState = { tool: 'pencil', strokeWidth: 3 };
+
+function getStrokeColor() {
+  return toolState.tool === 'eraser' ? '#ffffff' : '#000000';
+}
+
+function toCanvasCoords(cssX, cssY, cssWidth, cssHeight, canvasWidth, canvasHeight) {
+  return { x: (cssX / cssWidth) * canvasWidth, y: (cssY / cssHeight) * canvasHeight };
+}
+
+// ========================================================================
+// Health check
+// ========================================================================
 async function checkHealth() {
   try {
     const res = await fetch(`${API}/api/health`);
@@ -188,7 +306,35 @@ async function checkHealth() {
   }
 }
 
-// ---- Load sketch presets ----
+// ========================================================================
+// Mode tabs
+// ========================================================================
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+});
+
+function switchMode(mode) {
+  currentMode = mode;
+  // Update tab highlight
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  // Show/hide mode content
+  document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
+  if (mode === 'presets') $('#modePresets').classList.add('active');
+  else if (mode === 'upload') $('#modeUpload').classList.add('active');
+  else if (mode === 'live') $('#modeLive').classList.add('active');
+
+  // In live mode: hide shared controls (generate btn, HD toggle, etc.)
+  const shared = $('#sharedControls');
+  if (mode === 'live') {
+    shared.style.display = 'none';
+  } else {
+    shared.style.display = '';
+  }
+}
+
+// ========================================================================
+// Load sketch presets
+// ========================================================================
 async function loadSketches() {
   try {
     const res = await fetch(`${API}/api/sketches`);
@@ -204,17 +350,6 @@ async function loadSketches() {
       btn.addEventListener('click', () => selectPreset(s.id, s.default_prompt));
       container.appendChild(btn);
     }
-
-    // Upload button
-    const uploadBtn = document.createElement('button');
-    uploadBtn.className = 'upload-btn';
-    uploadBtn.textContent = 'Upload...';
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*';
-    fileInput.addEventListener('change', handleUpload);
-    uploadBtn.appendChild(fileInput);
-    container.appendChild(uploadBtn);
   } catch (e) {
     console.error('Failed to load sketches:', e);
   }
@@ -244,6 +379,11 @@ async function selectPreset(id, defaultPrompt) {
   $('#generateBtn').disabled = false;
 }
 
+// ========================================================================
+// Upload handling
+// ========================================================================
+$('#fileInput').addEventListener('change', handleUpload);
+
 function handleUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -254,9 +394,14 @@ function handleUpload(e) {
   const reader = new FileReader();
   reader.onload = () => {
     const dataUrl = reader.result;
-    // Extract base64 portion (after "data:image/...;base64,")
     uploadedBase64 = dataUrl.split(',')[1];
-    showSketchPreview(dataUrl);
+    // Show in upload preview
+    const container = $('#uploadPreview');
+    container.innerHTML = '';
+    container.classList.add('has-image');
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    container.appendChild(img);
     $('#generateBtn').disabled = false;
   };
   reader.readAsDataURL(file);
@@ -271,15 +416,24 @@ function showSketchPreview(src) {
   container.appendChild(img);
 }
 
-// ---- Sliders ----
+// ========================================================================
+// Sliders
+// ========================================================================
 $('#stepsInput').addEventListener('input', (e) => {
   $('#stepsValue').textContent = e.target.value;
 });
 $('#denoiseInput').addEventListener('input', (e) => {
   $('#denoiseValue').textContent = (e.target.value / 100).toFixed(2);
 });
+$('#strokeWidthInput').addEventListener('input', (e) => {
+  const val = parseInt(e.target.value);
+  toolState.strokeWidth = Math.max(1, Math.min(30, val));
+  $('#strokeWidthValue').textContent = toolState.strokeWidth;
+});
 
-// ---- Generate ----
+// ========================================================================
+// Generate (presets/upload modes)
+// ========================================================================
 $('#generateBtn').addEventListener('click', startGeneration);
 
 async function startGeneration() {
@@ -408,7 +562,202 @@ function openLightbox(src) {
   document.body.appendChild(overlay);
 }
 
-// ---- Init ----
+// ========================================================================
+// Canvas drawing engine
+// ========================================================================
+const canvas = $('#sketchCanvas');
+const ctx = canvas.getContext('2d');
+let isDrawing = false;
+let debounceTimer = null;
+let hasStrokes = false;
+
+// Init canvas to white
+ctx.fillStyle = '#ffffff';
+ctx.fillRect(0, 0, 512, 512);
+
+// Tool buttons
+$('#pencilBtn').addEventListener('click', () => {
+  toolState.tool = 'pencil';
+  $('#pencilBtn').classList.add('active');
+  $('#eraserBtn').classList.remove('active');
+});
+$('#eraserBtn').addEventListener('click', () => {
+  toolState.tool = 'eraser';
+  $('#eraserBtn').classList.add('active');
+  $('#pencilBtn').classList.remove('active');
+});
+$('#clearCanvasBtn').addEventListener('click', () => {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 512, 512);
+  hasStrokes = false;
+  updateQueueStatus();
+});
+
+function getCanvasPoint(e) {
+  const rect = canvas.getBoundingClientRect();
+  let clientX, clientY;
+  if (e.touches) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  return toCanvasCoords(
+    clientX - rect.left, clientY - rect.top,
+    rect.width, rect.height,
+    512, 512
+  );
+}
+
+function startStroke(e) {
+  e.preventDefault();
+  isDrawing = true;
+  const pt = getCanvasPoint(e);
+  ctx.beginPath();
+  ctx.moveTo(pt.x, pt.y);
+  ctx.strokeStyle = getStrokeColor();
+  ctx.lineWidth = toolState.strokeWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+}
+
+function continueStroke(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  const pt = getCanvasPoint(e);
+  ctx.lineTo(pt.x, pt.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(pt.x, pt.y);
+}
+
+function endStroke(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  isDrawing = false;
+  hasStrokes = true;
+  // Debounce submission
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    if (currentMode === 'live' && hasStrokes) {
+      submitCanvasToQueue();
+    }
+  }, 300);
+}
+
+// Mouse events
+canvas.addEventListener('mousedown', startStroke);
+canvas.addEventListener('mousemove', continueStroke);
+canvas.addEventListener('mouseup', endStroke);
+canvas.addEventListener('mouseleave', endStroke);
+
+// Touch events
+canvas.addEventListener('touchstart', startStroke, { passive: false });
+canvas.addEventListener('touchmove', continueStroke, { passive: false });
+canvas.addEventListener('touchend', endStroke, { passive: false });
+canvas.addEventListener('touchcancel', endStroke, { passive: false });
+
+// ========================================================================
+// Live queue submission
+// ========================================================================
+async function submitCanvasToQueue() {
+  // Get canvas as base64
+  const dataUrl = canvas.toDataURL('image/png');
+  const base64 = dataUrl.split(',')[1];
+
+  const prompt = $('#promptInput')?.value?.trim() || undefined;
+
+  try {
+    const res = await fetch(`${API}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sketch: base64, prompt, steps: 4, denoise: 0.75, hd: false }),
+    });
+
+    if (!res.ok) {
+      console.error('Live submit failed:', res.status);
+      return;
+    }
+
+    const data = await res.json();
+    const { entry, evicted } = queueAddSubmission(liveQueue, data.job_id);
+
+    // Cancel evicted job (fire-and-forget)
+    if (evicted) {
+      if (evicted.pollTimer) clearInterval(evicted.pollTimer);
+      fetch(`${API}/api/cancel/${evicted.jobId}`, { method: 'POST' }).catch(() => {});
+    }
+
+    // Start polling this job
+    entry.pollTimer = setInterval(() => pollLiveJob(entry), 1000);
+    updateQueueStatus();
+  } catch (e) {
+    console.error('Live submit error:', e);
+  }
+}
+
+async function pollLiveJob(entry) {
+  try {
+    const res = await fetch(`${API}/api/status/${entry.jobId}`);
+    const data = await res.json();
+
+    if (data.status === 'completed') {
+      entry.status = 'completed';
+      if (entry.pollTimer) { clearInterval(entry.pollTimer); entry.pollTimer = null; }
+
+      if (queueShouldDisplay(liveQueue, entry)) {
+        await showLiveResult(entry.jobId);
+      }
+      updateQueueStatus();
+    } else if (data.status === 'failed' || data.status === 'cancelled') {
+      entry.status = data.status;
+      if (entry.pollTimer) { clearInterval(entry.pollTimer); entry.pollTimer = null; }
+      updateQueueStatus();
+    }
+  } catch (e) {
+    entry.status = 'failed';
+    if (entry.pollTimer) { clearInterval(entry.pollTimer); entry.pollTimer = null; }
+    updateQueueStatus();
+  }
+}
+
+async function showLiveResult(jobId) {
+  try {
+    const res = await fetch(`${API}/api/result/${jobId}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const container = $('#outputPreview');
+    container.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = url;
+    container.appendChild(img);
+
+    $('#outputStatus').textContent = 'Live result';
+    $('#outputStatus').className = 'status-text';
+
+    addToHistory(url);
+  } catch (e) {
+    console.error('Error loading live result:', e);
+  }
+}
+
+function updateQueueStatus() {
+  const count = queueActiveCount(liveQueue);
+  const el = $('#queueStatus');
+  if (count > 0) {
+    el.textContent = `${count} generation${count > 1 ? 's' : ''} in queue`;
+  } else if (hasStrokes) {
+    el.textContent = 'Draw to generate';
+  } else {
+    el.textContent = '';
+  }
+}
+
+// ========================================================================
+// Init
+// ========================================================================
 checkHealth();
 setInterval(checkHealth, 30000);
 loadSketches();

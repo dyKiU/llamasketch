@@ -1,0 +1,11 @@
+{
+  "name": "pencil-flux-klein-tests",
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  }
+}
