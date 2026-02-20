@@ -278,6 +278,37 @@ async def cancel_job(job_id: str):
     return {"job_id": job_id, "status": job.status}
 
 
+@app.get("/api/gpu")
+async def gpu_stats():
+    """Proxy ComfyUI /system_stats for GPU/VRAM info and include job queue counts."""
+    active_jobs = sum(
+        1 for j in jobs.values()
+        if j.status not in (JobStatus.completed, JobStatus.failed, JobStatus.cancelled)
+    )
+    try:
+        resp = await client._client.get("/system_stats")
+        data = resp.json()
+        devices = data.get("devices", [])
+        gpu = devices[0] if devices else {}
+        return {
+            "gpu_name": gpu.get("name", "Unknown"),
+            "vram_total": gpu.get("vram_total", 0),
+            "vram_free": gpu.get("vram_free", 0),
+            "torch_vram_total": gpu.get("torch_vram_total", 0),
+            "torch_vram_free": gpu.get("torch_vram_free", 0),
+            "active_jobs": active_jobs,
+        }
+    except Exception:
+        return {
+            "gpu_name": "Unavailable",
+            "vram_total": 0,
+            "vram_free": 0,
+            "torch_vram_total": 0,
+            "torch_vram_free": 0,
+            "active_jobs": active_jobs,
+        }
+
+
 @app.get("/api/result/{job_id}")
 async def job_result(job_id: str):
     if job_id not in jobs:

@@ -45,6 +45,11 @@ header h1 { font-size: 1.25rem; font-weight: 600; }
 .status-dot.connected { background: #4caf50; }
 .status-dot.disconnected { background: #f44336; }
 .health-indicator { display: flex; align-items: center; font-size: 0.85rem; opacity: 0.9; }
+.gpu-stats { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; opacity: 0.85; }
+.gpu-stats .gpu-label { color: rgba(255,255,255,0.6); }
+.gpu-stats .gpu-bar { width: 60px; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden; }
+.gpu-stats .gpu-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s, background 0.5s; }
+.gpu-stats .gpu-text { min-width: 32px; color: #fff; }
 
 /* Main layout */
 main { display: flex; flex: 1; gap: 0; overflow: hidden; align-items: flex-start; }
@@ -116,15 +121,15 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; align-items: flex-start
 .overlay-controls label { font-size: 0.85rem; font-weight: 500; margin-bottom: 4px; display: block; color: var(--text); }
 
 /* Variations strip */
-.variations-strip { width: 100%; max-width: 400px; margin-bottom: 12px; display: none; }
+.variations-strip { width: 100%; margin-bottom: 12px; display: none; }
 .variations-strip.active { display: block; }
 .variations-strip .section-label { margin-bottom: 6px; }
 .variations-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .variations-header .section-label { margin-bottom: 0; }
 .variations-spinner { font-size: 0.8rem; color: var(--text-muted); }
-.variations-scroll { display: flex; gap: 6px; flex-wrap: wrap; }
-.variations-thumb { width: 144px; height: 144px; border-radius: 4px; border: 2px solid var(--border);
-  overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.15s; position: relative; }
+.variations-scroll { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.variations-thumb { aspect-ratio: 1; border-radius: 4px; border: 2px solid var(--border);
+  overflow: hidden; cursor: pointer; transition: border-color 0.15s; position: relative; }
 .variations-thumb:hover { border-color: var(--accent); }
 .variations-thumb.selected { border-color: var(--accent); border-width: 3px; }
 .variations-thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -206,6 +211,12 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 <header>
   <h1>Pencil Flux Klein</h1>
   <div class="header-right">
+    <div class="gpu-stats" id="gpuStats">
+      <span class="gpu-label">VRAM</span>
+      <div class="gpu-bar"><div class="gpu-bar-fill" id="gpuBarFill"></div></div>
+      <span class="gpu-text" id="gpuText">--</span>
+      <span class="gpu-label" id="gpuJobs"></span>
+    </div>
     <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
     <div class="health-indicator">
       <span class="status-dot disconnected" id="healthDot"></span>
@@ -439,6 +450,45 @@ async function checkHealth() {
   } catch {
     $('#healthDot').className = 'status-dot disconnected';
     $('#healthText').textContent = 'Backend offline';
+  }
+}
+
+// ========================================================================
+// GPU stats polling
+// ========================================================================
+async function pollGpuStats() {
+  try {
+    const res = await fetch(`${API}/api/gpu`);
+    const data = await res.json();
+    const total = data.vram_total;
+    const free = data.vram_free;
+    const fill = $('#gpuBarFill');
+    const text = $('#gpuText');
+    const jobsEl = $('#gpuJobs');
+
+    if (total > 0) {
+      const usedPct = Math.round(((total - free) / total) * 100);
+      const usedGB = ((total - free) / (1024 ** 3)).toFixed(1);
+      const totalGB = (total / (1024 ** 3)).toFixed(0);
+      fill.style.width = usedPct + '%';
+      fill.style.background = usedPct > 90 ? '#f44336' : usedPct > 70 ? '#ff9800' : '#4caf50';
+      text.textContent = `${usedGB}/${totalGB}G`;
+      text.title = `${data.gpu_name} — ${usedPct}% VRAM used`;
+    } else {
+      fill.style.width = '0%';
+      text.textContent = '--';
+      text.title = data.gpu_name;
+    }
+
+    if (data.active_jobs > 0) {
+      jobsEl.textContent = `${data.active_jobs} job${data.active_jobs > 1 ? 's' : ''}`;
+    } else {
+      jobsEl.textContent = '';
+    }
+  } catch {
+    $('#gpuBarFill').style.width = '0%';
+    $('#gpuText').textContent = '--';
+    $('#gpuJobs').textContent = '';
   }
 }
 
@@ -1416,6 +1466,8 @@ function initPrompt() {
 // ========================================================================
 checkHealth();
 setInterval(checkHealth, 30000);
+pollGpuStats();
+setInterval(pollGpuStats, 1000);
 loadSketches();
 loadWordList().then(initPrompt);
 // Default to live sketch mode
