@@ -20,6 +20,7 @@ class GenerateRequest(BaseModel):
     prompt: Optional[str] = None
     steps: int = Field(default=4, ge=1, le=50)
     denoise: float = Field(default=0.75, ge=0.0, le=1.0)
+    hd: bool = Field(default=False, description="Two-pass HD: generate at 512 then refine at 1024")
     seed: Optional[int] = None
 
 

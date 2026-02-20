@@ -57,18 +57,30 @@ class ComfyUIClient:
         return result["name"]
 
     def build_workflow(
-        self, image_filename: str, prompt: str, steps: int, denoise: float, seed: Optional[int]
+        self,
+        image_filename: str,
+        prompt: str,
+        steps: int,
+        denoise: float,
+        seed: Optional[int],
+        width: int = 512,
+        height: int = 512,
     ) -> dict:
         """Build a workflow dict from template, injecting parameters."""
         wf = copy.deepcopy(self._workflow_template)
         # Node 1: LoadImage
         wf["1"]["inputs"]["image"] = image_filename
+        # Node 16: ImageScale resolution
+        wf["16"]["inputs"]["width"] = width
+        wf["16"]["inputs"]["height"] = height
         # Node 6: Positive prompt
         wf["6"]["inputs"]["text"] = prompt
         # Node 8: RandomNoise seed (always set to avoid ComfyUI caching)
         wf["8"]["inputs"]["noise_seed"] = seed if seed is not None else random.randint(0, 2**53)
-        # Node 10: Flux2Scheduler steps
+        # Node 10: Flux2Scheduler steps + resolution
         wf["10"]["inputs"]["steps"] = steps
+        wf["10"]["inputs"]["width"] = width
+        wf["10"]["inputs"]["height"] = height
         # Node 15: SplitSigmasDenoise
         wf["15"]["inputs"]["denoise"] = denoise
         # Node 14: SaveImage prefix
@@ -125,6 +137,23 @@ class ComfyUIClient:
         resp.raise_for_status()
         return resp.content
 
+    async def _run_single_pass(
+        self,
+        image_bytes: bytes,
+        filename: str,
+        prompt: str,
+        steps: int,
+        denoise: float,
+        seed: Optional[int],
+        width: int,
+        height: int,
+    ) -> bytes:
+        """Single generation pass: build -> submit -> poll -> download."""
+        workflow = self.build_workflow(filename, prompt, steps, denoise, seed, width, height)
+        prompt_id = await self.submit_workflow(workflow)
+        outputs = await self.poll_for_completion(prompt_id)
+        return await self.download_output_image(outputs)
+
     async def generate(
         self,
         image_bytes: bytes,
@@ -132,9 +161,10 @@ class ComfyUIClient:
         steps: int,
         denoise: float,
         seed: Optional[int],
+        hd: bool = False,
         on_status: Optional[Callable] = None,
     ) -> bytes:
-        """Full pipeline: upload -> build -> submit -> poll -> download. Returns PNG bytes."""
+        """Full pipeline. If hd=True, does two passes: 512 then 1024 refinement."""
 
         def _set(status):
             if on_status:
@@ -145,12 +175,20 @@ class ComfyUIClient:
         _set(JobStatus.uploading)
         filename = await self.upload_image(image_bytes, "pencil_input.png")
 
-        _set(JobStatus.submitted)
-        workflow = self.build_workflow(filename, prompt, steps, denoise, seed)
-        prompt_id = await self.submit_workflow(workflow)
-
         _set(JobStatus.processing)
-        outputs = await self.poll_for_completion(prompt_id)
+        result_bytes = await self._run_single_pass(
+            image_bytes, filename, prompt, steps, denoise, seed, 512, 512,
+        )
+
+        if hd:
+            _set(JobStatus.uploading)
+            hd_filename = await self.upload_image(result_bytes, "pencil_hd_input.png")
+
+            _set(JobStatus.processing)
+            hd_seed = random.randint(0, 2**53)
+            result_bytes = await self._run_single_pass(
+                result_bytes, hd_filename, prompt, steps, 0.35, hd_seed, 1024, 1024,
+            )
 
         _set(JobStatus.downloading)
-        return await self.download_output_image(outputs)
+        return result_bytes

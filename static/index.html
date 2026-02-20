@@ -49,6 +49,10 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 .range-row input[type="range"] { flex: 1; }
 .range-value { font-size: 0.9rem; font-weight: 600; min-width: 24px; text-align: center; }
 
+/* Checkbox */
+.checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+.checkbox-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+
 /* Generate button */
 .generate-btn { padding: 10px 32px; background: #1a1a2e; color: #fff; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
 .generate-btn:hover { background: #16213e; }
@@ -124,6 +128,13 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
         <input type="range" id="denoiseInput" min="0" max="100" value="75" step="5">
         <span class="range-value" id="denoiseValue">0.75</span>
       </div>
+    </div>
+
+    <div class="form-group">
+      <label class="checkbox-row">
+        <input type="checkbox" id="hdToggle">
+        <span>HD mode <small style="color:#888">(two-pass: 512 then upscale to 1024)</small></span>
+      </label>
     </div>
 
     <button class="generate-btn" id="generateBtn" disabled>Generate</button>
@@ -278,6 +289,7 @@ async function startGeneration() {
   const prompt = $('#promptInput').value.trim() || undefined;
   const steps = parseInt($('#stepsInput').value);
   const denoise = parseInt($('#denoiseInput').value) / 100;
+  const hd = $('#hdToggle').checked;
 
   const btn = $('#generateBtn');
   btn.disabled = true;
@@ -295,7 +307,7 @@ async function startGeneration() {
     const res = await fetch(`${API}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sketch, prompt, steps, denoise }),
+      body: JSON.stringify({ sketch, prompt, steps, denoise, hd }),
     });
 
     if (!res.ok) {

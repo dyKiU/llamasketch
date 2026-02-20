@@ -142,7 +142,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 
-async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int, denoise: float, seed: Optional[int]):
+async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int, denoise: float, hd: bool, seed: Optional[int]):
     try:
         png_bytes = await client.generate(
             image_bytes=image_bytes,
@@ -150,6 +150,7 @@ async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int,
             steps=steps,
             denoise=denoise,
             seed=seed,
+            hd=hd,
             on_status=lambda s: setattr(job, "status", s),
         )
         job.result_image = png_bytes
@@ -244,7 +245,7 @@ async def generate(req: GenerateRequest):
 
     # Launch background generation
     asyncio.create_task(
-        _run_generation(job, image_bytes, prompt, req.steps, req.denoise, req.seed)
+        _run_generation(job, image_bytes, prompt, req.steps, req.denoise, req.hd, req.seed)
     )
 
     return GenerateResponse(job_id=job_id, status=job.status)
