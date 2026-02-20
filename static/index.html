@@ -6,11 +6,41 @@
 <title>Pencil Flux Klein</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* Theme variables */
+:root {
+  --bg: #f5f5f5;
+  --panel-bg: #fff;
+  --panel-alt: #fafafa;
+  --text: #333;
+  --text-muted: #888;
+  --border: #ddd;
+  --input-bg: #fff;
+  --preview-bg: #eee;
+  --accent: #1a1a2e;
+  --accent-hover: #16213e;
+}
+body.dark {
+  --bg: #1a1a1a;
+  --panel-bg: #2a2a2e;
+  --panel-alt: #232327;
+  --text: #e0e0e0;
+  --text-muted: #999;
+  --border: #444;
+  --input-bg: #333;
+  --preview-bg: #333;
+  --accent: #6c7bff;
+  --accent-hover: #8b97ff;
+}
+
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
 
 /* Header */
-header { background: #1a1a2e; color: #fff; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+header { background: var(--accent); color: #fff; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
 header h1 { font-size: 1.25rem; font-weight: 600; }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.theme-toggle { background: none; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; color: #fff; cursor: pointer; font-size: 1.1rem; padding: 4px 8px; line-height: 1; transition: border-color 0.15s; }
+.theme-toggle:hover { border-color: rgba(255,255,255,0.6); }
 .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 .status-dot.connected { background: #4caf50; }
 .status-dot.disconnected { background: #f44336; }
@@ -19,43 +49,43 @@ header h1 { font-size: 1.25rem; font-weight: 600; }
 /* Main layout */
 main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 .panel { padding: 24px; overflow-y: auto; }
-.panel-left { flex: 1; border-right: 1px solid #ddd; background: #fff; min-width: 0; }
-.panel-right { flex: 1; background: #fafafa; min-width: 0; display: flex; flex-direction: column; }
+.panel-left { flex: 1; border-right: 1px solid var(--border); background: var(--panel-bg); min-width: 0; }
+.panel-right { flex: 1; background: var(--panel-alt); min-width: 0; display: flex; flex-direction: column; }
 
 /* Section labels */
-.section-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 8px; font-weight: 600; }
+.section-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; }
 
 /* Mode tabs */
-.mode-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #eee; }
-.mode-tab { padding: 8px 16px; border: none; background: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
-.mode-tab:hover { color: #555; }
-.mode-tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 600; }
+.mode-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+.mode-tab { padding: 8px 16px; border: none; background: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+.mode-tab:hover { color: var(--text); }
+.mode-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .mode-content { display: none; }
 .mode-content.active { display: block; }
 
 /* Image preview areas */
-.preview-container { width: 100%; max-width: 400px; aspect-ratio: 1; background: #eee; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 16px; position: relative; }
+.preview-container { width: 100%; max-width: 400px; aspect-ratio: 1; background: var(--preview-bg); border: 2px dashed var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 16px; position: relative; }
 .preview-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.preview-container.has-image { border-style: solid; border-color: #bbb; }
-.preview-placeholder { color: #aaa; font-size: 0.9rem; }
+.preview-container.has-image { border-style: solid; border-color: var(--border); }
+.preview-placeholder { color: var(--text-muted); font-size: 0.9rem; }
 
 /* Sketch preset buttons */
 .sketch-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-.sketch-presets button { padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
-.sketch-presets button:hover { border-color: #999; background: #f0f0f0; }
-.sketch-presets button.active { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
+.sketch-presets button { padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
+.sketch-presets button:hover { border-color: var(--text-muted); background: var(--preview-bg); }
+.sketch-presets button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 
 /* Upload area */
 .upload-area { margin-bottom: 16px; }
-.upload-btn { position: relative; overflow: hidden; padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
-.upload-btn:hover { border-color: #999; background: #f0f0f0; }
+.upload-btn { position: relative; overflow: hidden; padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
+.upload-btn:hover { border-color: var(--text-muted); background: var(--preview-bg); }
 .upload-btn input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 /* Form controls */
 .form-group { margin-bottom: 16px; }
-.form-group label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px; }
+.form-group label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px; color: var(--text); }
 .form-group input[type="text"],
-.form-group textarea { width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; font-family: inherit; }
+.form-group textarea { width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .form-group textarea { resize: vertical; min-height: 60px; }
 .range-row { display: flex; align-items: center; gap: 12px; max-width: 400px; }
 .range-row input[type="range"] { flex: 1; }
@@ -66,51 +96,78 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 
 /* Generate button */
-.generate-btn { padding: 10px 32px; background: #1a1a2e; color: #fff; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
-.generate-btn:hover { background: #16213e; }
+.generate-btn { padding: 10px 32px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+.generate-btn:hover { background: var(--accent-hover); }
 .generate-btn:disabled { background: #999; cursor: not-allowed; }
 
 /* Status text */
-.status-text { font-size: 0.85rem; color: #666; margin-top: 12px; }
+.status-text { font-size: 0.85rem; color: var(--text-muted); margin-top: 12px; }
 .status-text.error { color: #d32f2f; }
 
 /* Output panel */
 .output-area { flex: 1; display: flex; flex-direction: column; }
-.output-preview { width: 100%; max-width: 400px; aspect-ratio: 1; background: #eee; border: 2px solid #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 12px; }
+.output-preview { width: 100%; max-width: 400px; aspect-ratio: 1; background: var(--preview-bg); border: 2px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 12px; position: relative; }
 .output-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.overlay-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; opacity: 0; }
+
+/* Overlay controls */
+.overlay-controls { width: 100%; max-width: 400px; margin-bottom: 12px; display: none; }
+.overlay-controls.active { display: block; }
+.overlay-controls label { font-size: 0.85rem; font-weight: 500; margin-bottom: 4px; display: block; color: var(--text); }
+
+/* Variations strip */
+.variations-strip { width: 100%; max-width: 400px; margin-bottom: 12px; display: none; }
+.variations-strip.active { display: block; }
+.variations-strip .section-label { margin-bottom: 6px; }
+.variations-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.variations-header .section-label { margin-bottom: 0; }
+.variations-spinner { font-size: 0.8rem; color: var(--text-muted); }
+.variations-scroll { display: flex; gap: 6px; flex-wrap: wrap; }
+.variations-thumb { width: 72px; height: 72px; border-radius: 4px; border: 2px solid var(--border);
+  overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.15s; position: relative; }
+.variations-thumb:hover { border-color: var(--accent); }
+.variations-thumb.selected { border-color: var(--accent); border-width: 3px; }
+.variations-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.variations-thumb.pending { display: flex; align-items: center; justify-content: center;
+  background: var(--preview-bg); }
+.variations-thumb.pending::after { content: ''; width: 16px; height: 16px; border: 2px solid var(--text-muted);
+  border-top-color: var(--accent); border-radius: 50%; animation: varspin 0.8s linear infinite; }
+@keyframes varspin { to { transform: rotate(360deg); } }
 
 /* Progress bar */
-.progress-bar-container { width: 100%; max-width: 400px; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin-bottom: 8px; display: none; }
+.progress-bar-container { width: 100%; max-width: 400px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; display: none; }
 .progress-bar-container.active { display: block; }
-.progress-bar-fill { height: 100%; background: #1a1a2e; border-radius: 3px; transition: width 0.4s ease; width: 0%; }
+.progress-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s ease; width: 0%; }
 
 /* History strip */
-.history-strip { border-top: 1px solid #ddd; background: #fff; padding: 12px 24px; }
+.history-strip { border-top: 1px solid var(--border); background: var(--panel-bg); padding: 12px 24px; }
 .history-strip .section-label { margin-bottom: 8px; }
 .history-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-.history-thumb { width: 64px; height: 64px; border-radius: 4px; border: 2px solid #ddd; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.15s; }
-.history-thumb:hover { border-color: #1a1a2e; }
+.history-thumb { width: 64px; height: 64px; border-radius: 4px; border: 2px solid var(--border); overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.15s; }
+.history-thumb:hover { border-color: var(--accent); }
 .history-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.history-empty { color: #aaa; font-size: 0.85rem; }
+.history-empty { color: var(--text-muted); font-size: 0.85rem; }
 
 /* Lightbox overlay */
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
 .lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
 
 /* Live Sketch canvas */
-.canvas-wrapper { width: 100%; max-width: 400px; margin-bottom: 12px; }
-.canvas-wrapper canvas { width: 100%; aspect-ratio: 1; border: 2px solid #bbb; border-radius: 8px; cursor: crosshair; touch-action: none; background: #fff; display: block; }
+.canvas-wrapper { width: 100%; max-width: 400px; margin-bottom: 12px; position: relative; }
+.canvas-wrapper canvas { width: 100%; aspect-ratio: 1; border: 2px solid var(--border); border-radius: 8px; cursor: crosshair; touch-action: none; display: block; background-image: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%); background-size: 16px 16px; }
+body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#444 0% 25%, #333 0% 50%); }
+.canvas-overlay-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; border-radius: 8px; opacity: 0.2; display: none; }
 .canvas-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; max-width: 400px; }
-.tool-btn { padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.8rem; transition: all 0.15s; }
-.tool-btn:hover { border-color: #999; background: #f0f0f0; }
-.tool-btn.active { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
+.tool-btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.8rem; transition: all 0.15s; }
+.tool-btn:hover { border-color: var(--text-muted); background: var(--preview-bg); }
+.tool-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 .canvas-toolbar .range-row { flex: 1; min-width: 120px; }
-.queue-status { font-size: 0.8rem; color: #888; margin-top: 4px; }
+.queue-status { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
 
 /* Responsive */
 @media (max-width: 768px) {
   main { flex-direction: column; }
-  .panel-left { border-right: none; border-bottom: 1px solid #ddd; }
+  .panel-left { border-right: none; border-bottom: 1px solid var(--border); }
   .preview-container, .output-preview, .form-group input, .form-group textarea, .canvas-wrapper { max-width: 100%; }
 }
 </style>
@@ -119,9 +176,12 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
 
 <header>
   <h1>Pencil Flux Klein</h1>
-  <div class="health-indicator">
-    <span class="status-dot disconnected" id="healthDot"></span>
-    <span id="healthText">Checking...</span>
+  <div class="header-right">
+    <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
+    <div class="health-indicator">
+      <span class="status-dot disconnected" id="healthDot"></span>
+      <span id="healthText">Checking...</span>
+    </div>
   </div>
 </header>
 
@@ -162,6 +222,7 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
     <div class="mode-content" id="modeLive">
       <div class="canvas-wrapper">
         <canvas id="sketchCanvas" width="512" height="512"></canvas>
+        <img class="canvas-overlay-img" id="canvasOverlayImg" alt="">
       </div>
       <div class="canvas-toolbar">
         <button class="tool-btn active" id="pencilBtn" data-tool="pencil">Pencil</button>
@@ -172,6 +233,13 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
         </div>
         <button class="tool-btn" id="clearCanvasBtn">Clear</button>
       </div>
+      <div class="form-group" id="canvasOverlayControls" style="display:none">
+        <label>Result overlay</label>
+        <div class="range-row">
+          <input type="range" id="canvasOverlayOpacity" min="0" max="100" value="20">
+          <span class="range-value" id="canvasOverlayOpacityValue">20%</span>
+        </div>
+      </div>
       <div class="queue-status" id="queueStatus"></div>
     </div>
 
@@ -179,6 +247,15 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
     <div class="form-group">
       <label for="promptInput">Prompt</label>
       <textarea id="promptInput" placeholder="Describe the image you want..."></textarea>
+    </div>
+
+    <!-- Creativity slider (always visible) -->
+    <div class="form-group">
+      <label>Creativity (low = faithful to sketch, high = more creative)</label>
+      <div class="range-row">
+        <input type="range" id="denoiseInput" min="0" max="100" value="75" step="5">
+        <span class="range-value" id="denoiseValue">0.75</span>
+      </div>
     </div>
 
     <!-- Shared controls (hidden in live mode) -->
@@ -191,18 +268,10 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
         </div>
       </div>
 
-      <div class="form-group">
-        <label>Creativity (low = faithful to sketch, high = more creative)</label>
-        <div class="range-row">
-          <input type="range" id="denoiseInput" min="0" max="100" value="75" step="5">
-          <span class="range-value" id="denoiseValue">0.75</span>
-        </div>
-      </div>
-
       <div class="form-group" id="hdGroup">
         <label class="checkbox-row">
           <input type="checkbox" id="hdToggle">
-          <span>HD mode <small style="color:#888">(two-pass: 512 then upscale to 1024)</small></span>
+          <span>HD mode <small style="color:var(--text-muted)">(two-pass: 512 then upscale to 1024)</small></span>
         </label>
       </div>
 
@@ -216,6 +285,20 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; }
     <div class="output-area">
       <div class="output-preview" id="outputPreview">
         <span class="preview-placeholder">Result will appear here</span>
+      </div>
+      <div class="overlay-controls" id="overlayControls">
+        <label>Sketch overlay</label>
+        <div class="range-row">
+          <input type="range" id="overlayOpacity" min="0" max="100" value="0">
+          <span class="range-value" id="overlayOpacityValue">0%</span>
+        </div>
+      </div>
+      <div class="variations-strip" id="variationsStrip">
+        <div class="variations-header">
+          <div class="section-label">Variations</div>
+          <span class="variations-spinner" id="variationsSpinner"></span>
+        </div>
+        <div class="variations-scroll" id="variationsScroll"></div>
       </div>
       <div class="progress-bar-container" id="progressBar">
         <div class="progress-bar-fill" id="progressFill"></div>
@@ -243,6 +326,10 @@ let selectedSketch = null;   // preset id string
 let uploadedBase64 = null;   // base64 string for uploaded image
 let polling = null;
 let currentMode = 'presets'; // 'presets' | 'upload' | 'live'
+
+// Variety batch state
+let varietyJobs = [];       // Array of { jobId, status, pollTimer, thumbEl }
+const VARIETY_COUNT = 8;
 
 // ========================================================================
 // Queue Manager (synced copy of src/queue-manager.ts logic)
@@ -285,8 +372,8 @@ const liveQueue = createQueue();
 // ========================================================================
 let toolState = { tool: 'pencil', strokeWidth: 3 };
 
-function getStrokeColor() {
-  return toolState.tool === 'eraser' ? '#ffffff' : '#000000';
+function getStrokeStyle() {
+  return toolState.tool === 'eraser' ? 'destination-out' : 'source-over';
 }
 
 function toCanvasCoords(cssX, cssY, cssWidth, cssHeight, canvasWidth, canvasHeight) {
@@ -338,6 +425,20 @@ function switchMode(mode) {
     shared.style.display = 'none';
   } else {
     shared.style.display = '';
+    abortVarietyBatch();
+  }
+
+  // Show overlay controls only in live mode
+  const overlayCtrl = $('#overlayControls');
+  if (mode === 'live') {
+    overlayCtrl.classList.add('active');
+  } else {
+    overlayCtrl.classList.remove('active');
+    // Hide canvas overlay when leaving live mode
+    if (typeof canvasOverlayImg !== 'undefined') {
+      canvasOverlayImg.style.display = 'none';
+      $('#canvasOverlayControls').style.display = 'none';
+    }
   }
 }
 
@@ -433,6 +534,7 @@ $('#stepsInput').addEventListener('input', (e) => {
 });
 $('#denoiseInput').addEventListener('input', (e) => {
   $('#denoiseValue').textContent = (e.target.value / 100).toFixed(2);
+  scheduleSubmit();
 });
 $('#strokeWidthInput').addEventListener('input', (e) => {
   const val = parseInt(e.target.value);
@@ -487,8 +589,7 @@ async function startGeneration() {
   $('#outputStatus').className = 'status-text';
 
   // Clear output and show progress
-  const outputContainer = $('#outputPreview');
-  outputContainer.innerHTML = '<span class="preview-placeholder">Generating...</span>';
+  setOutputPlaceholder('Generating...');
   setProgress('queued');
 
   try {
@@ -535,7 +636,7 @@ function pollJob(jobId) {
         polling = null;
         $('#outputStatus').textContent = `Failed: ${data.error || 'Unknown error'} (${elapsed})`;
         $('#outputStatus').className = 'status-text error';
-        $('#outputPreview').innerHTML = '<span class="preview-placeholder">Generation failed</span>';
+        setOutputPlaceholder('Generation failed');
         $('#generateBtn').disabled = false;
         $('#generateBtn').textContent = 'Generate';
       }
@@ -556,12 +657,7 @@ async function showResult(jobId, elapsed) {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
 
-    // Show in output area
-    const container = $('#outputPreview');
-    container.innerHTML = '';
-    const img = document.createElement('img');
-    img.src = url;
-    container.appendChild(img);
+    setOutputImage(url);
 
     $('#outputStatus').textContent = `Completed (${elapsed})`;
 
@@ -606,9 +702,8 @@ let isDrawing = false;
 let debounceTimer = null;
 let hasStrokes = false;
 
-// Init canvas to white
-ctx.fillStyle = '#ffffff';
-ctx.fillRect(0, 0, 512, 512);
+// Init canvas to transparent (checkerboard shows through)
+ctx.clearRect(0, 0, 512, 512);
 
 // Tool buttons
 $('#pencilBtn').addEventListener('click', () => {
@@ -622,10 +717,13 @@ $('#eraserBtn').addEventListener('click', () => {
   $('#pencilBtn').classList.remove('active');
 });
 $('#clearCanvasBtn').addEventListener('click', () => {
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, 512, 512);
+  ctx.clearRect(0, 0, 512, 512);
   hasStrokes = false;
   updateQueueStatus();
+  updateOverlayImage();
+  canvasOverlayImg.style.display = 'none';
+  $('#canvasOverlayControls').style.display = 'none';
+  abortVarietyBatch();
 });
 
 function getCanvasPoint(e) {
@@ -649,9 +747,10 @@ function startStroke(e) {
   e.preventDefault();
   isDrawing = true;
   const pt = getCanvasPoint(e);
+  ctx.globalCompositeOperation = getStrokeStyle();
   ctx.beginPath();
   ctx.moveTo(pt.x, pt.y);
-  ctx.strokeStyle = getStrokeColor();
+  ctx.strokeStyle = '#000000';
   ctx.lineWidth = toolState.strokeWidth;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -671,14 +770,11 @@ function endStroke(e) {
   if (!isDrawing) return;
   e.preventDefault();
   isDrawing = false;
+  ctx.globalCompositeOperation = 'source-over';
   hasStrokes = true;
+  updateOverlayImage();
   // Debounce submission
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    if (currentMode === 'live' && hasStrokes) {
-      submitCanvasToQueue();
-    }
-  }, 300);
+  scheduleSubmit();
 }
 
 // Mouse events
@@ -696,18 +792,32 @@ canvas.addEventListener('touchcancel', endStroke, { passive: false });
 // ========================================================================
 // Live queue submission
 // ========================================================================
+function canvasToWhiteBgDataURL() {
+  // Composite canvas onto white background for export (transparent = white, not black)
+  const tmp = document.createElement('canvas');
+  tmp.width = canvas.width;
+  tmp.height = canvas.height;
+  const tctx = tmp.getContext('2d');
+  tctx.fillStyle = '#ffffff';
+  tctx.fillRect(0, 0, tmp.width, tmp.height);
+  tctx.drawImage(canvas, 0, 0);
+  return tmp.toDataURL('image/png');
+}
+
 async function submitCanvasToQueue() {
-  // Get canvas as base64
-  const dataUrl = canvas.toDataURL('image/png');
+  // Get canvas as base64 (with white background)
+  const dataUrl = canvasToWhiteBgDataURL();
   const base64 = dataUrl.split(',')[1];
 
   const prompt = $('#promptInput')?.value?.trim() || undefined;
+  const steps = parseInt($('#stepsInput').value);
+  const denoise = parseInt($('#denoiseInput').value) / 100;
 
   try {
     const res = await fetch(`${API}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sketch: base64, prompt, steps: 4, denoise: 0.75, hd: false }),
+      body: JSON.stringify({ sketch: base64, prompt, steps, denoise, hd: false }),
     });
 
     if (!res.ok) {
@@ -765,16 +875,16 @@ async function showLiveResult(jobId) {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
 
-    const container = $('#outputPreview');
-    container.innerHTML = '';
-    const img = document.createElement('img');
-    img.src = url;
-    container.appendChild(img);
+    setOutputImage(url);
+    updateCanvasOverlay(url);
 
     $('#outputStatus').textContent = 'Live result';
     $('#outputStatus').className = 'status-text';
 
     addToHistory(url);
+
+    // Fire variety batch after first live result
+    if (currentMode === 'live') startVarietyBatch();
   } catch (e) {
     console.error('Error loading live result:', e);
   }
@@ -793,11 +903,235 @@ function updateQueueStatus() {
 }
 
 // ========================================================================
+// Variety batch manager
+// ========================================================================
+function startVarietyBatch() {
+  abortVarietyBatch();
+
+  // Capture current inputs
+  const dataUrl = canvasToWhiteBgDataURL();
+  const base64 = dataUrl.split(',')[1];
+  const prompt = $('#promptInput')?.value?.trim() || undefined;
+  const steps = parseInt($('#stepsInput').value);
+  const denoise = parseInt($('#denoiseInput').value) / 100;
+
+  // Show strip and clear contents
+  const strip = $('#variationsStrip');
+  const scroll = $('#variationsScroll');
+  const spinner = $('#variationsSpinner');
+  strip.classList.add('active');
+  scroll.innerHTML = '';
+  spinner.textContent = `Generating... 0/${VARIETY_COUNT}`;
+
+  // Create placeholders and fire requests
+  for (let i = 0; i < VARIETY_COUNT; i++) {
+    const thumbEl = document.createElement('div');
+    thumbEl.className = 'variations-thumb pending';
+    scroll.appendChild(thumbEl);
+
+    const job = { jobId: null, status: 'pending', pollTimer: null, thumbEl };
+    varietyJobs.push(job);
+
+    // Fire request (IIFE to capture index)
+    (async (idx) => {
+      try {
+        const res = await fetch(`${API}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sketch: base64, prompt, steps, denoise, hd: false }),
+        });
+        if (!res.ok) {
+          varietyJobs[idx].status = 'failed';
+          varietyJobs[idx].thumbEl.remove();
+          updateVarietySpinner();
+          return;
+        }
+        const data = await res.json();
+        varietyJobs[idx].jobId = data.job_id;
+        varietyJobs[idx].status = 'polling';
+        varietyJobs[idx].pollTimer = setInterval(() => pollVarietyJob(idx), 1000);
+      } catch (e) {
+        varietyJobs[idx].status = 'failed';
+        varietyJobs[idx].thumbEl.remove();
+        updateVarietySpinner();
+      }
+    })(i);
+  }
+
+  function updateVarietySpinner() {
+    const done = varietyJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
+    if (done >= VARIETY_COUNT) {
+      spinner.textContent = '';
+    } else {
+      const completed = varietyJobs.filter(j => j.status === 'completed').length;
+      spinner.textContent = `Generating... ${completed}/${VARIETY_COUNT}`;
+    }
+  }
+
+  // Expose updater for pollVarietyJob
+  startVarietyBatch._updateSpinner = updateVarietySpinner;
+}
+
+async function pollVarietyJob(idx) {
+  const job = varietyJobs[idx];
+  if (!job || !job.jobId) return;
+
+  try {
+    const res = await fetch(`${API}/api/status/${job.jobId}`);
+    const data = await res.json();
+
+    if (data.status === 'completed') {
+      job.status = 'completed';
+      if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
+
+      // Fetch result image
+      const imgRes = await fetch(`${API}/api/result/${job.jobId}`);
+      const blob = await imgRes.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Replace placeholder with image
+      job.thumbEl.classList.remove('pending');
+      job.thumbEl.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = url;
+      job.thumbEl.appendChild(img);
+
+      // Click handler: show in main output
+      job.thumbEl.addEventListener('click', () => {
+        setOutputImage(url);
+        updateCanvasOverlay(url);
+        // Mark selected
+        document.querySelectorAll('.variations-thumb').forEach(t => t.classList.remove('selected'));
+        job.thumbEl.classList.add('selected');
+      });
+
+      addToHistory(url);
+      if (startVarietyBatch._updateSpinner) startVarietyBatch._updateSpinner();
+
+    } else if (data.status === 'failed' || data.status === 'cancelled') {
+      job.status = 'failed';
+      if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
+      job.thumbEl.remove();
+      if (startVarietyBatch._updateSpinner) startVarietyBatch._updateSpinner();
+    }
+  } catch (e) {
+    job.status = 'failed';
+    if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
+    job.thumbEl.remove();
+    if (startVarietyBatch._updateSpinner) startVarietyBatch._updateSpinner();
+  }
+}
+
+function abortVarietyBatch() {
+  for (const job of varietyJobs) {
+    if (job.pollTimer) clearInterval(job.pollTimer);
+    if (job.jobId && (job.status === 'pending' || job.status === 'polling')) {
+      fetch(`${API}/api/cancel/${job.jobId}`, { method: 'POST' }).catch(() => {});
+    }
+  }
+  varietyJobs = [];
+  startVarietyBatch._updateSpinner = null;
+  $('#variationsStrip').classList.remove('active');
+  $('#variationsScroll').innerHTML = '';
+  $('#variationsSpinner').textContent = '';
+}
+
+// ========================================================================
+// Dark mode toggle
+// ========================================================================
+(function initTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'dark') document.body.classList.add('dark');
+  updateThemeIcon();
+})();
+
+$('#themeToggle').addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+  updateThemeIcon();
+});
+
+function updateThemeIcon() {
+  $('#themeToggle').innerHTML = document.body.classList.contains('dark') ? '&#9788;' : '&#9790;';
+}
+
+// ========================================================================
+// Output overlay
+// ========================================================================
+const overlayImg = document.createElement('img');
+overlayImg.className = 'overlay-img';
+$('#outputPreview').appendChild(overlayImg);
+
+$('#overlayOpacity').addEventListener('input', (e) => {
+  const val = parseInt(e.target.value);
+  overlayImg.style.opacity = val / 100;
+  $('#overlayOpacityValue').textContent = val + '%';
+});
+
+function updateOverlayImage() {
+  overlayImg.src = canvas.toDataURL('image/png');
+}
+
+function setOutputImage(url) {
+  const container = $('#outputPreview');
+  // Remove all children except overlay img
+  Array.from(container.children).forEach(child => {
+    if (child !== overlayImg) container.removeChild(child);
+  });
+  const img = document.createElement('img');
+  img.src = url;
+  container.insertBefore(img, overlayImg);
+}
+
+function setOutputPlaceholder(text) {
+  const container = $('#outputPreview');
+  Array.from(container.children).forEach(child => {
+    if (child !== overlayImg) container.removeChild(child);
+  });
+  const span = document.createElement('span');
+  span.className = 'preview-placeholder';
+  span.textContent = text;
+  container.insertBefore(span, overlayImg);
+}
+
+// ========================================================================
+// Canvas overlay (output over input)
+// ========================================================================
+const canvasOverlayImg = $('#canvasOverlayImg');
+
+$('#canvasOverlayOpacity').addEventListener('input', (e) => {
+  const val = parseInt(e.target.value);
+  canvasOverlayImg.style.opacity = val / 100;
+  $('#canvasOverlayOpacityValue').textContent = val + '%';
+});
+
+function updateCanvasOverlay(url) {
+  canvasOverlayImg.src = url;
+  canvasOverlayImg.style.display = 'block';
+  $('#canvasOverlayControls').style.display = '';
+}
+
+// ========================================================================
+// Debounced live submit
+// ========================================================================
+function scheduleSubmit() {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  abortVarietyBatch();
+  debounceTimer = setTimeout(() => {
+    if (currentMode === 'live' && hasStrokes) {
+      submitCanvasToQueue();
+    }
+  }, 300);
+}
+
+// ========================================================================
 // Init
 // ========================================================================
 checkHealth();
 setInterval(checkHealth, 30000);
 loadSketches();
+// Default to live sketch mode
+switchMode('live');
 </script>
 </body>
 </html>
