@@ -1125,11 +1125,43 @@ function scheduleSubmit() {
 }
 
 // ========================================================================
+// Random prompt words
+// ========================================================================
+let wordList = [];
+
+async function loadWordList() {
+  try {
+    const res = await fetch(`${API}/static/words.txt`);
+    const text = await res.text();
+    wordList = text.split('\n').filter(w => w.trim());
+  } catch (e) {
+    console.error('Failed to load word list:', e);
+  }
+}
+
+function randomPrompt(count = 3) {
+  if (!wordList.length) return '';
+  const words = [];
+  for (let i = 0; i < count; i++) {
+    words.push(wordList[Math.floor(Math.random() * wordList.length)]);
+  }
+  return words.join(' ');
+}
+
+function initPrompt() {
+  const prompt = $('#promptInput');
+  if (!prompt.value.trim()) {
+    prompt.value = randomPrompt(3);
+  }
+}
+
+// ========================================================================
 // Init
 // ========================================================================
 checkHealth();
 setInterval(checkHealth, 30000);
 loadSketches();
+loadWordList().then(initPrompt);
 // Default to live sketch mode
 switchMode('live');
 </script>
