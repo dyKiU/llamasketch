@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pencil Flux Klein</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* Header */
+header { background: #1a1a2e; color: #fff; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+header h1 { font-size: 1.25rem; font-weight: 600; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.status-dot.connected { background: #4caf50; }
+.status-dot.disconnected { background: #f44336; }
+.health-indicator { display: flex; align-items: center; font-size: 0.85rem; opacity: 0.9; }
+
+/* Main layout */
+main { display: flex; flex: 1; gap: 0; overflow: hidden; }
+.panel { padding: 24px; overflow-y: auto; }
+.panel-left { flex: 1; border-right: 1px solid #ddd; background: #fff; min-width: 0; }
+.panel-right { flex: 1; background: #fafafa; min-width: 0; display: flex; flex-direction: column; }
+
+/* Section labels */
+.section-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 8px; font-weight: 600; }
+
+/* Image preview areas */
+.preview-container { width: 100%; max-width: 400px; aspect-ratio: 1; background: #eee; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 16px; position: relative; }
+.preview-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.preview-container.has-image { border-style: solid; border-color: #bbb; }
+.preview-placeholder { color: #aaa; font-size: 0.9rem; }
+
+/* Sketch preset buttons */
+.sketch-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.sketch-presets button { padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
+.sketch-presets button:hover { border-color: #999; background: #f0f0f0; }
+.sketch-presets button.active { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
+.upload-btn { position: relative; overflow: hidden; }
+.upload-btn input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* Form controls */
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px; }
+.form-group input[type="text"],
+.form-group textarea { width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; font-family: inherit; }
+.form-group textarea { resize: vertical; min-height: 60px; }
+.range-row { display: flex; align-items: center; gap: 12px; max-width: 400px; }
+.range-row input[type="range"] { flex: 1; }
+.range-value { font-size: 0.9rem; font-weight: 600; min-width: 24px; text-align: center; }
+
+/* Generate button */
+.generate-btn { padding: 10px 32px; background: #1a1a2e; color: #fff; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+.generate-btn:hover { background: #16213e; }
+.generate-btn:disabled { background: #999; cursor: not-allowed; }
+
+/* Status text */
+.status-text { font-size: 0.85rem; color: #666; margin-top: 12px; }
+.status-text.error { color: #d32f2f; }
+
+/* Output panel */
+.output-area { flex: 1; display: flex; flex-direction: column; }
+.output-preview { width: 100%; max-width: 400px; aspect-ratio: 1; background: #eee; border: 2px solid #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 12px; }
+.output-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* History strip */
+.history-strip { border-top: 1px solid #ddd; background: #fff; padding: 12px 24px; }
+.history-strip .section-label { margin-bottom: 8px; }
+.history-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.history-thumb { width: 64px; height: 64px; border-radius: 4px; border: 2px solid #ddd; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.15s; }
+.history-thumb:hover { border-color: #1a1a2e; }
+.history-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.history-empty { color: #aaa; font-size: 0.85rem; }
+
+/* Lightbox overlay */
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
+.lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  main { flex-direction: column; }
+  .panel-left { border-right: none; border-bottom: 1px solid #ddd; }
+  .preview-container, .output-preview, .form-group input, .form-group textarea { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Pencil Flux Klein</h1>
+  <div class="health-indicator">
+    <span class="status-dot disconnected" id="healthDot"></span>
+    <span id="healthText">Checking...</span>
+  </div>
+</header>
+
+<main>
+  <div class="panel panel-left">
+    <div class="section-label">Input Sketch</div>
+    <div class="preview-container" id="sketchPreview">
+      <span class="preview-placeholder">Select a sketch below</span>
+    </div>
+
+    <div class="sketch-presets" id="sketchPresets">
+      <!-- Populated by JS -->
+    </div>
+
+    <div class="form-group">
+      <label for="promptInput">Prompt</label>
+      <textarea id="promptInput" placeholder="Describe the image you want..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Steps</label>
+      <div class="range-row">
+        <input type="range" id="stepsInput" min="1" max="50" value="4">
+        <span class="range-value" id="stepsValue">4</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Denoise (sketch influence)</label>
+      <div class="range-row">
+        <input type="range" id="denoiseInput" min="0" max="100" value="75" step="5">
+        <span class="range-value" id="denoiseValue">0.75</span>
+      </div>
+    </div>
+
+    <button class="generate-btn" id="generateBtn" disabled>Generate</button>
+    <div class="status-text" id="statusText"></div>
+  </div>
+
+  <div class="panel panel-right">
+    <div class="section-label">Output</div>
+    <div class="output-area">
+      <div class="output-preview" id="outputPreview">
+        <span class="preview-placeholder">Result will appear here</span>
+      </div>
+      <div class="status-text" id="outputStatus"></div>
+    </div>
+  </div>
+</main>
+
+<div class="history-strip">
+  <div class="section-label">History</div>
+  <div class="history-scroll" id="historyScroll">
+    <span class="history-empty" id="historyEmpty">No generations yet</span>
+  </div>
+</div>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const API = '';
+
+// State
+let selectedSketch = null;   // preset id string
+let uploadedBase64 = null;   // base64 string for uploaded image
+let polling = null;
+
+// ---- Health check ----
+async function checkHealth() {
+  try {
+    const res = await fetch(`${API}/api/health`);
+    const data = await res.json();
+    const dot = $('#healthDot');
+    const text = $('#healthText');
+    if (data.comfyui_reachable) {
+      dot.className = 'status-dot connected';
+      text.textContent = 'Connected';
+    } else {
+      dot.className = 'status-dot disconnected';
+      text.textContent = 'Disconnected';
+    }
+  } catch {
+    $('#healthDot').className = 'status-dot disconnected';
+    $('#healthText').textContent = 'Backend offline';
+  }
+}
+
+// ---- Load sketch presets ----
+async function loadSketches() {
+  try {
+    const res = await fetch(`${API}/api/sketches`);
+    const sketches = await res.json();
+    const container = $('#sketchPresets');
+    container.innerHTML = '';
+
+    for (const s of sketches) {
+      const btn = document.createElement('button');
+      btn.textContent = s.name;
+      btn.dataset.id = s.id;
+      btn.dataset.prompt = s.default_prompt;
+      btn.addEventListener('click', () => selectPreset(s.id, s.default_prompt));
+      container.appendChild(btn);
+    }
+
+    // Upload button
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'upload-btn';
+    uploadBtn.textContent = 'Upload...';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.addEventListener('change', handleUpload);
+    uploadBtn.appendChild(fileInput);
+    container.appendChild(uploadBtn);
+  } catch (e) {
+    console.error('Failed to load sketches:', e);
+  }
+}
+
+async function selectPreset(id, defaultPrompt) {
+  selectedSketch = id;
+  uploadedBase64 = null;
+
+  // Highlight active button
+  document.querySelectorAll('.sketch-presets button').forEach(b => {
+    b.classList.toggle('active', b.dataset.id === id);
+  });
+
+  // Load preview image
+  try {
+    const res = await fetch(`${API}/api/sketches/${id}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    showSketchPreview(url);
+  } catch (e) {
+    console.error('Failed to load sketch:', e);
+  }
+
+  // Fill prompt
+  $('#promptInput').value = defaultPrompt;
+  $('#generateBtn').disabled = false;
+}
+
+function handleUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  selectedSketch = null;
+  document.querySelectorAll('.sketch-presets button').forEach(b => b.classList.remove('active'));
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    // Extract base64 portion (after "data:image/...;base64,")
+    uploadedBase64 = dataUrl.split(',')[1];
+    showSketchPreview(dataUrl);
+    $('#generateBtn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+function showSketchPreview(src) {
+  const container = $('#sketchPreview');
+  container.innerHTML = '';
+  container.classList.add('has-image');
+  const img = document.createElement('img');
+  img.src = src;
+  container.appendChild(img);
+}
+
+// ---- Sliders ----
+$('#stepsInput').addEventListener('input', (e) => {
+  $('#stepsValue').textContent = e.target.value;
+});
+$('#denoiseInput').addEventListener('input', (e) => {
+  $('#denoiseValue').textContent = (e.target.value / 100).toFixed(2);
+});
+
+// ---- Generate ----
+$('#generateBtn').addEventListener('click', startGeneration);
+
+async function startGeneration() {
+  const sketch = uploadedBase64 || selectedSketch;
+  if (!sketch) return;
+
+  const prompt = $('#promptInput').value.trim() || undefined;
+  const steps = parseInt($('#stepsInput').value);
+  const denoise = parseInt($('#denoiseInput').value) / 100;
+
+  const btn = $('#generateBtn');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  $('#statusText').textContent = '';
+  $('#statusText').className = 'status-text';
+  $('#outputStatus').textContent = '';
+  $('#outputStatus').className = 'status-text';
+
+  // Clear output
+  const outputContainer = $('#outputPreview');
+  outputContainer.innerHTML = '<span class="preview-placeholder">Generating...</span>';
+
+  try {
+    const res = await fetch(`${API}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sketch, prompt, steps, denoise }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Generation failed');
+    }
+
+    const data = await res.json();
+    pollJob(data.job_id);
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Generate';
+    $('#statusText').textContent = `Error: ${e.message}`;
+    $('#statusText').className = 'status-text error';
+  }
+}
+
+function pollJob(jobId) {
+  if (polling) clearInterval(polling);
+
+  polling = setInterval(async () => {
+    try {
+      const res = await fetch(`${API}/api/status/${jobId}`);
+      const data = await res.json();
+      const elapsed = data.elapsed_seconds ? `${data.elapsed_seconds}s` : '';
+      $('#outputStatus').textContent = `Status: ${data.status}${elapsed ? ` (${elapsed})` : ''}`;
+
+      if (data.status === 'completed') {
+        clearInterval(polling);
+        polling = null;
+        showResult(jobId, elapsed);
+        $('#generateBtn').disabled = false;
+        $('#generateBtn').textContent = 'Generate';
+      } else if (data.status === 'failed') {
+        clearInterval(polling);
+        polling = null;
+        $('#outputStatus').textContent = `Failed: ${data.error || 'Unknown error'} (${elapsed})`;
+        $('#outputStatus').className = 'status-text error';
+        $('#outputPreview').innerHTML = '<span class="preview-placeholder">Generation failed</span>';
+        $('#generateBtn').disabled = false;
+        $('#generateBtn').textContent = 'Generate';
+      }
+    } catch (e) {
+      clearInterval(polling);
+      polling = null;
+      $('#outputStatus').textContent = 'Error polling status';
+      $('#outputStatus').className = 'status-text error';
+      $('#generateBtn').disabled = false;
+      $('#generateBtn').textContent = 'Generate';
+    }
+  }, 1000);
+}
+
+async function showResult(jobId, elapsed) {
+  try {
+    const res = await fetch(`${API}/api/result/${jobId}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    // Show in output area
+    const container = $('#outputPreview');
+    container.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = url;
+    container.appendChild(img);
+
+    $('#outputStatus').textContent = `Completed (${elapsed})`;
+
+    // Add to history
+    addToHistory(url);
+  } catch (e) {
+    $('#outputStatus').textContent = 'Error loading result';
+    $('#outputStatus').className = 'status-text error';
+  }
+}
+
+function addToHistory(imageUrl) {
+  const empty = $('#historyEmpty');
+  if (empty) empty.remove();
+
+  const scroll = $('#historyScroll');
+  const thumb = document.createElement('div');
+  thumb.className = 'history-thumb';
+  const img = document.createElement('img');
+  img.src = imageUrl;
+  thumb.appendChild(img);
+  thumb.addEventListener('click', () => openLightbox(imageUrl));
+  scroll.prepend(thumb);
+}
+
+function openLightbox(src) {
+  const overlay = document.createElement('div');
+  overlay.className = 'lightbox';
+  const img = document.createElement('img');
+  img.src = src;
+  overlay.appendChild(img);
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+
+// ---- Init ----
+checkHealth();
+setInterval(checkHealth, 30000);
+loadSketches();
+</script>
+</body>
+</html>

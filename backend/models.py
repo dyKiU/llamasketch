@@ -19,6 +19,7 @@ class GenerateRequest(BaseModel):
     sketch: str = Field(..., description="Preset ID (e.g. 'birds') or base64-encoded PNG")
     prompt: Optional[str] = None
     steps: int = Field(default=4, ge=1, le=50)
+    denoise: float = Field(default=0.75, ge=0.0, le=1.0)
     seed: Optional[int] = None
 
 

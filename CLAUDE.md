@@ -1,5 +1,13 @@
 # Pencil Flux Klein - Project Notes
 
+## Setup Rules
+
+- **Always use `scripts/setup_vastai.sh`** to set up new Vast.ai instances (model downloads, PyTorch upgrade, workflow copy, etc.). Do NOT download models manually — the script has the correct URLs, size validation, and is idempotent.
+  ```bash
+  scp -P <port> scripts/setup_vastai.sh root@<host>:/workspace/
+  ssh -p <port> root@<host> "bash /workspace/setup_vastai.sh"
+  ```
+
 ## Vast.ai Instance
 
 - **SSH**: `ssh -p 10142 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@77.33.143.182`

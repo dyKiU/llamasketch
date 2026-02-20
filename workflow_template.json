@@ -27,7 +27,7 @@
       "unet_name": "flux-2-klein-4b.safetensors",
       "weight_dtype": "default"
     },
-    "_meta": { "title": "UNET Loader (FLUX Klein 4B FP8)" }
+    "_meta": { "title": "UNET Loader (FLUX Klein 4B)" }
   },
   "5": {
     "class_type": "CLIPLoader",
@@ -75,6 +75,14 @@
     },
     "_meta": { "title": "Flux2 Scheduler" }
   },
+  "15": {
+    "class_type": "SplitSigmasDenoise",
+    "inputs": {
+      "sigmas": ["10", 0],
+      "denoise": 0.75
+    },
+    "_meta": { "title": "Split Sigmas (Denoise)" }
+  },
   "11": {
     "class_type": "CFGGuider",
     "inputs": {
@@ -91,7 +99,7 @@
       "noise": ["8", 0],
       "guider": ["11", 0],
       "sampler": ["9", 0],
-      "sigmas": ["10", 0],
+      "sigmas": ["15", 1],
       "latent_image": ["3", 0]
     },
     "_meta": { "title": "Sampler Custom Advanced" }

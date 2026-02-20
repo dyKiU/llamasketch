@@ -10,7 +10,8 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw
 
 from .comfyui import ComfyUIClient, ComfyUIError
@@ -141,12 +142,13 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 
-async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int, seed: Optional[int]):
+async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int, denoise: float, seed: Optional[int]):
     try:
         png_bytes = await client.generate(
             image_bytes=image_bytes,
             prompt=prompt,
             steps=steps,
+            denoise=denoise,
             seed=seed,
             on_status=lambda s: setattr(job, "status", s),
         )
@@ -165,9 +167,12 @@ async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int,
 # ---------------------------------------------------------------------------
 
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
 @app.get("/")
 async def root():
-    return {"service": "pencil-flux-klein", "version": "0.1.0"}
+    return RedirectResponse(url="/static/index.html")
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -239,7 +244,7 @@ async def generate(req: GenerateRequest):
 
     # Launch background generation
     asyncio.create_task(
-        _run_generation(job, image_bytes, prompt, req.steps, req.seed)
+        _run_generation(job, image_bytes, prompt, req.steps, req.denoise, req.seed)
     )
 
     return GenerateResponse(job_id=job_id, status=job.status)

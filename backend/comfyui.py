@@ -57,7 +57,7 @@ class ComfyUIClient:
         return result["name"]
 
     def build_workflow(
-        self, image_filename: str, prompt: str, steps: int, seed: Optional[int]
+        self, image_filename: str, prompt: str, steps: int, denoise: float, seed: Optional[int]
     ) -> dict:
         """Build a workflow dict from template, injecting parameters."""
         wf = copy.deepcopy(self._workflow_template)
@@ -69,6 +69,8 @@ class ComfyUIClient:
         wf["8"]["inputs"]["noise_seed"] = seed if seed is not None else random.randint(0, 2**53)
         # Node 10: Flux2Scheduler steps
         wf["10"]["inputs"]["steps"] = steps
+        # Node 15: SplitSigmasDenoise
+        wf["15"]["inputs"]["denoise"] = denoise
         # Node 14: SaveImage prefix
         wf["14"]["inputs"]["filename_prefix"] = "pencil_flux"
         return wf
@@ -128,6 +130,7 @@ class ComfyUIClient:
         image_bytes: bytes,
         prompt: str,
         steps: int,
+        denoise: float,
         seed: Optional[int],
         on_status: Optional[Callable] = None,
     ) -> bytes:
@@ -143,7 +146,7 @@ class ComfyUIClient:
         filename = await self.upload_image(image_bytes, "pencil_input.png")
 
         _set(JobStatus.submitted)
-        workflow = self.build_workflow(filename, prompt, steps, seed)
+        workflow = self.build_workflow(filename, prompt, steps, denoise, seed)
         prompt_id = await self.submit_workflow(workflow)
 
         _set(JobStatus.processing)
