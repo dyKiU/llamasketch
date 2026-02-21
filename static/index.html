@@ -224,6 +224,44 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 .session-actions .del-session:hover { background: #fdecea; }
 body.dark .session-actions .del-session:hover { background: #3a2020; }
 
+/* Settings menu */
+.settings-wrap { position: relative; }
+.settings-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 250; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 0; box-shadow: 0 4px 16px rgba(0,0,0,0.2); min-width: 210px; display: none; }
+.settings-menu.open { display: block; }
+.settings-menu-section { padding: 4px 16px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; }
+.settings-menu-item { padding: 6px 16px; font-size: 0.85rem; cursor: pointer; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.settings-menu-item:hover { background: var(--preview-bg); }
+.settings-menu-item .radio { width: 14px; height: 14px; border: 2px solid var(--border); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.settings-menu-item.active .radio { border-color: var(--accent); }
+.settings-menu-item.active .radio::after { content: ''; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+
+/* Import actions row (Mode A) */
+.import-actions { display: flex; gap: 8px; margin-bottom: 12px; max-width: 400px; }
+
+/* Preset chips (Modes B, D, E) */
+.preset-chips { display: flex; gap: 6px; margin-bottom: 12px; max-width: 400px; overflow-x: auto; align-items: center; padding-bottom: 4px; }
+.preset-chip { width: 40px; height: 40px; border-radius: 4px; border: 2px solid var(--border); overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.15s; }
+.preset-chip:hover { border-color: var(--accent); }
+.preset-chip img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Preset popover (Mode A) */
+.preset-popover { position: fixed; z-index: 200; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); display: none; }
+.preset-popover.open { display: flex; flex-wrap: wrap; gap: 6px; max-width: 300px; }
+.preset-popover .preset-chip { width: 48px; height: 48px; }
+
+/* Canvas drawer (Mode C) */
+.canvas-drawer { max-width: 400px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 0; background: var(--panel-alt); display: none; overflow: hidden; }
+.canvas-drawer.open { display: block; padding: 12px; }
+.drawer-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.canvas-drawer-btn { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-bg); color: var(--text); font-size: 1.2rem; cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 5; line-height: 1; }
+.canvas-drawer-btn:hover { background: var(--preview-bg); }
+
+/* Canvas drag-drop feedback */
+.canvas-wrapper.drop-active canvas { border-color: #2196F3 !important; border-style: dashed !important; }
+
+/* Mode E: full width panel */
+.panel-left.full-width { flex: 1 1 100%; border-right: none; }
+
 /* Responsive */
 @media (max-width: 768px) {
   main { flex-direction: column; }
@@ -244,6 +282,17 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
       <span class="gpu-text" id="gpuText">--</span>
       <span class="gpu-label" id="gpuJobs"></span>
     </div>
+    <div class="settings-wrap">
+      <button class="theme-toggle" id="settingsBtn" title="Settings">&#9881;</button>
+      <div class="settings-menu" id="settingsMenu">
+        <div class="settings-menu-section">Layout</div>
+        <div class="settings-menu-item" data-layout="A"><span class="radio"></span> Toolbar + Buttons</div>
+        <div class="settings-menu-item" data-layout="B"><span class="radio"></span> Preset Chips</div>
+        <div class="settings-menu-item" data-layout="C"><span class="radio"></span> Drawer</div>
+        <div class="settings-menu-item" data-layout="D"><span class="radio"></span> Hybrid</div>
+        <div class="settings-menu-item" data-layout="E"><span class="radio"></span> Merged Canvas</div>
+      </div>
+    </div>
     <button class="theme-toggle" id="sessionsBtn" title="Sessions">Sessions</button>
     <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
     <div class="health-indicator">
@@ -257,72 +306,66 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
   <div class="panel panel-left">
     <div class="section-label">Input Sketch</div>
 
-    <div class="mode-tabs">
-      <button class="mode-tab active" data-mode="presets">Presets</button>
-      <button class="mode-tab" data-mode="upload">Upload</button>
-      <button class="mode-tab" data-mode="live">Live Sketch</button>
+    <!-- Canvas (always visible) -->
+    <div class="canvas-wrapper" id="canvasWrap">
+      <canvas id="sketchCanvas" width="512" height="512"></canvas>
+      <img class="canvas-overlay-img" id="canvasOverlayImg" alt="">
+      <button class="canvas-drawer-btn" id="drawerBtn" title="Add preset or upload">+</button>
+    </div>
+    <div class="canvas-toolbar">
+      <button class="tool-btn active" id="pencilBtn" data-tool="pencil">Pencil</button>
+      <button class="tool-btn" id="eraserBtn" data-tool="eraser">Eraser</button>
+      <div class="range-row">
+        <input type="range" id="strokeWidthInput" min="1" max="30" value="3">
+        <span class="range-value" id="strokeWidthValue">3</span>
+      </div>
+      <button class="tool-btn" id="clearCanvasBtn">Clear</button>
+    </div>
+    <div class="canvas-toolbar">
+      <button class="tool-btn" id="saveSketchBtn">Save</button>
+      <button class="tool-btn" id="loadSketchBtn">Load
+        <input type="file" id="loadSketchInput" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+      </button>
+      <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
+      <button class="tool-btn" id="fitStretchBtn" data-fit="stretch">Stretch</button>
+      <button class="tool-btn active" id="fitFillBtn" data-fit="fill">Fill</button>
+      <button class="tool-btn" id="fitFitBtn" data-fit="fit">Fit</button>
     </div>
 
-    <!-- Presets mode -->
-    <div class="mode-content active" id="modePresets">
-      <div class="preview-container" id="sketchPreview">
-        <span class="preview-placeholder">Select a sketch below</span>
-      </div>
-      <div class="img-info" id="presetImgInfo"></div>
-      <div class="sketch-presets" id="sketchPresets">
-        <!-- Populated by JS -->
-      </div>
+    <!-- Import actions (Mode A) -->
+    <div class="import-actions" id="importActions" style="display:none">
+      <button class="tool-btn" id="presetDropdownBtn">+ Preset &#9662;</button>
+      <button class="tool-btn" id="uploadActionBtn">+ Upload</button>
+      <button class="tool-btn" id="pasteActionBtn">+ Paste</button>
     </div>
 
-    <!-- Upload mode -->
-    <div class="mode-content" id="modeUpload">
-      <div class="preview-container" id="uploadPreview">
-        <span class="preview-placeholder">Upload an image</span>
-      </div>
-      <div class="img-info" id="uploadImgInfo"></div>
-      <div class="upload-area">
-        <button class="upload-btn" id="uploadBtn">
-          Choose file...
-          <input type="file" id="fileInput" accept="image/*">
+    <!-- Preset popover (Mode A) -->
+    <div class="preset-popover" id="presetPopover"></div>
+
+    <!-- Preset chips (Modes B, D, E) -->
+    <div class="preset-chips" id="presetChips" style="display:none"></div>
+
+    <!-- Canvas drawer (Mode C) -->
+    <div class="canvas-drawer" id="canvasDrawer">
+      <div class="section-label">Presets</div>
+      <div class="drawer-presets" id="drawerPresets"></div>
+      <div class="section-label" style="margin-top:12px">Upload</div>
+      <div class="drawer-upload">
+        <button class="tool-btn" style="position:relative">Choose file...
+          <input type="file" id="drawerFileInput" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
         </button>
       </div>
     </div>
 
-    <!-- Live Sketch mode -->
-    <div class="mode-content" id="modeLive">
-      <div class="canvas-wrapper">
-        <canvas id="sketchCanvas" width="512" height="512"></canvas>
-        <img class="canvas-overlay-img" id="canvasOverlayImg" alt="">
+    <div class="form-group" id="canvasOverlayControls" style="display:none">
+      <label>Result overlay</label>
+      <div class="range-row">
+        <input type="range" id="canvasOverlayOpacity" min="0" max="100" value="20">
+        <span class="range-value" id="canvasOverlayOpacityValue">20%</span>
       </div>
-      <div class="canvas-toolbar">
-        <button class="tool-btn active" id="pencilBtn" data-tool="pencil">Pencil</button>
-        <button class="tool-btn" id="eraserBtn" data-tool="eraser">Eraser</button>
-        <div class="range-row">
-          <input type="range" id="strokeWidthInput" min="1" max="30" value="3">
-          <span class="range-value" id="strokeWidthValue">3</span>
-        </div>
-        <button class="tool-btn" id="clearCanvasBtn">Clear</button>
-      </div>
-      <div class="canvas-toolbar">
-        <button class="tool-btn" id="saveSketchBtn">Save</button>
-        <button class="tool-btn" id="loadSketchBtn">Load
-          <input type="file" id="loadSketchInput" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
-        </button>
-        <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
-        <button class="tool-btn" id="fitStretchBtn" data-fit="stretch">Stretch</button>
-        <button class="tool-btn active" id="fitFillBtn" data-fit="fill">Fill</button>
-        <button class="tool-btn" id="fitFitBtn" data-fit="fit">Fit</button>
-      </div>
-      <div class="form-group" id="canvasOverlayControls" style="display:none">
-        <label>Result overlay</label>
-        <div class="range-row">
-          <input type="range" id="canvasOverlayOpacity" min="0" max="100" value="20">
-          <span class="range-value" id="canvasOverlayOpacityValue">20%</span>
-        </div>
-      </div>
-      <div class="img-info" id="canvasImgInfo"></div>
-      <div class="queue-status" id="queueStatus"></div>
     </div>
+    <div class="img-info" id="canvasImgInfo"></div>
+    <div class="queue-status" id="queueStatus"></div>
 
     <!-- Prompt (always visible) -->
     <div class="form-group">
@@ -343,8 +386,8 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
       </div>
     </div>
 
-    <!-- Shared controls (hidden in live mode) -->
-    <div id="sharedControls">
+    <!-- Shared controls (hidden — live mode always on) -->
+    <div id="sharedControls" style="display:none">
       <div class="form-group">
         <label>Steps</label>
         <div class="range-row">
@@ -363,13 +406,13 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
       <button class="generate-btn" id="generateBtn" disabled>Generate</button>
       <div class="status-text" id="statusText"></div>
     </div>
+
+    <!-- Variations strip target for Mode E -->
+    <div id="variationsStripTarget"></div>
   </div>
 
   <div class="panel panel-right">
     <div class="section-label">Output</div>
-    <div class="mode-tabs" aria-hidden="true" style="visibility:hidden;pointer-events:none">
-      <button class="mode-tab">&nbsp;</button>
-    </div>
     <div class="output-area">
       <div class="output-preview" id="outputPreview">
         <span class="preview-placeholder">Result will appear here</span>
@@ -414,18 +457,19 @@ const API = '';
 let selectedSketch = null;   // preset id string
 let uploadedBase64 = null;   // base64 string for uploaded image
 let polling = null;
-let currentMode = 'presets'; // 'presets' | 'upload' | 'live'
+let currentLayout = localStorage.getItem('layoutMode') || 'D';
 let fitMode = 'fill'; // 'stretch' | 'fill' | 'fit'
+let sketchesData = []; // loaded preset data
 let creativityRange = null; // { min, max } in 0.00–1.00, or null = full range
 
 // Variety batch state
-let varietyJobs = [];       // Array of { jobId, status, pollTimer, thumbEl }
 const VARIETY_COUNT = 8;
 const VARIETY_IDLE_EXTRA = 8;   // Additional variations after idle
 const VARIETY_IDLE_MS = 10000;  // 10 seconds idle before extra batch
 let varietyIdleTimer = null;
 let varietyCapturedInputs = null; // { base64, prompt, steps, denoise } saved from first batch
-let varietyBatchGen = 0;         // generation counter — incremented on each new batch
+let varietyBatch = vbCreate(0);  // pure batch state (synced from variety-batch.ts)
+let varietyThumbMap = new Map(); // externalId → thumbEl (DOM link)
 
 // ========================================================================
 // Queue Manager (synced copy of src/queue-manager.ts logic)
@@ -474,6 +518,81 @@ function getStrokeStyle() {
 
 function toCanvasCoords(cssX, cssY, cssWidth, cssHeight, canvasWidth, canvasHeight) {
   return { x: (cssX / cssWidth) * canvasWidth, y: (cssY / cssHeight) * canvasHeight };
+}
+
+// ========================================================================
+// Variety Batch (synced copy of src/variety-batch.ts logic)
+// ========================================================================
+function vbCreate(generation) {
+  return { generation, jobs: [], totalFired: 0, onProgress: null, onAllDone: null };
+}
+
+function vbFireJobs(batch, count, submitFn) {
+  const newJobs = [];
+  for (let i = 0; i < count; i++) {
+    const job = { id: batch.totalFired + i, externalId: null, status: 'pending' };
+    batch.jobs.push(job);
+    newJobs.push(job);
+    const gen = batch.generation;
+    submitFn().then((externalId) => {
+      if (batch.generation !== gen) return;
+      job.externalId = externalId;
+      job.status = 'submitted';
+      _vbEmit(batch);
+    }).catch(() => {
+      if (batch.generation !== gen) return;
+      job.status = 'failed';
+      _vbEmit(batch);
+    });
+  }
+  batch.totalFired += count;
+  return newJobs;
+}
+
+function vbComplete(batch, externalId) {
+  const job = batch.jobs.find(j => j.externalId === externalId && j.status === 'submitted');
+  if (!job) return false;
+  job.status = 'completed';
+  _vbEmit(batch);
+  return true;
+}
+
+function vbFail(batch, externalId) {
+  const job = batch.jobs.find(j => j.externalId === externalId && j.status === 'submitted');
+  if (!job) return false;
+  job.status = 'failed';
+  _vbEmit(batch);
+  return true;
+}
+
+function vbAbort(batch, cancelFn) {
+  batch.generation++;
+  for (const job of batch.jobs) {
+    if (cancelFn && job.externalId && (job.status === 'pending' || job.status === 'submitted')) {
+      cancelFn(job.externalId);
+    }
+  }
+  batch.jobs = [];
+  batch.totalFired = 0;
+}
+
+function vbCompletedCount(batch) {
+  return batch.jobs.filter(j => j.status === 'completed').length;
+}
+
+function vbSettledCount(batch) {
+  return batch.jobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
+}
+
+function vbAllDone(batch) {
+  return batch.jobs.length > 0 && vbSettledCount(batch) === batch.jobs.length;
+}
+
+function _vbEmit(batch) {
+  const done = vbCompletedCount(batch);
+  const total = batch.jobs.length;
+  if (batch.onProgress) batch.onProgress(done, total);
+  if (vbAllDone(batch) && batch.onAllDone) batch.onAllDone();
 }
 
 // ========================================================================
@@ -538,43 +657,125 @@ async function pollGpuStats() {
 }
 
 // ========================================================================
-// Mode tabs
+// Settings menu
 // ========================================================================
-document.querySelectorAll('.mode-tab').forEach(tab => {
-  tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+$('#settingsBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('#settingsMenu').classList.toggle('open');
 });
 
-function switchMode(mode) {
-  currentMode = mode;
-  // Update tab highlight
-  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
-  // Show/hide mode content
-  document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
-  if (mode === 'presets') $('#modePresets').classList.add('active');
-  else if (mode === 'upload') $('#modeUpload').classList.add('active');
-  else if (mode === 'live') $('#modeLive').classList.add('active');
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.settings-wrap')) {
+    $('#settingsMenu').classList.remove('open');
+  }
+});
 
-  // In live mode: hide shared controls (generate btn, HD toggle, etc.)
-  const shared = $('#sharedControls');
-  if (mode === 'live') {
-    shared.style.display = 'none';
-  } else {
-    shared.style.display = '';
-    abortVarietyBatch();
+$('#settingsMenu').addEventListener('click', (e) => {
+  const item = e.target.closest('.settings-menu-item');
+  if (!item) return;
+  const mode = item.dataset.layout;
+  if (mode) {
+    applyLayout(mode);
+    $('#settingsMenu').classList.remove('open');
+  }
+});
+
+// ========================================================================
+// Layout system
+// ========================================================================
+function applyLayout(mode) {
+  currentLayout = mode;
+  localStorage.setItem('layoutMode', mode);
+
+  // Update settings menu selection
+  document.querySelectorAll('.settings-menu-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.layout === mode);
+  });
+
+  const panelLeft = $('.panel-left');
+  const panelRight = $('.panel-right');
+  const importActions = $('#importActions');
+  const presetChips = $('#presetChips');
+  const canvasDrawer = $('#canvasDrawer');
+  const drawerBtn = $('#drawerBtn');
+  const variationsTarget = $('#variationsStripTarget');
+  const variationsStrip = $('#variationsStrip');
+  const canvasOvl = $('#canvasOverlayImg');
+
+  // Reset all layout-specific states
+  importActions.style.display = 'none';
+  presetChips.style.display = 'none';
+  canvasDrawer.classList.remove('open');
+  drawerBtn.style.display = 'none';
+  panelRight.style.display = '';
+  panelLeft.classList.remove('full-width');
+
+  // Move variations strip back to panel-right if it was moved
+  if (variationsStrip.parentElement === variationsTarget) {
+    const outputArea = $('.output-area');
+    const progressBar = $('#progressBar');
+    outputArea.insertBefore(variationsStrip, progressBar);
   }
 
-  // Show overlay controls only in live mode
-  const overlayCtrl = $('#overlayControls');
-  if (mode === 'live') {
-    overlayCtrl.classList.add('active');
-  } else {
-    overlayCtrl.classList.remove('active');
-    // Hide canvas overlay when leaving live mode
-    if (typeof canvasOverlayImg !== 'undefined') {
-      canvasOverlayImg.style.display = 'none';
-      $('#canvasOverlayControls').style.display = 'none';
-    }
+  // Overlay controls always active (live mode always on)
+  $('#overlayControls').classList.add('active');
+
+  // Reset canvas overlay opacity to slider value (Mode E overrides this)
+  if (mode !== 'E') {
+    const savedOpacity = parseInt($('#canvasOverlayOpacity').value);
+    canvasOvl.style.opacity = savedOpacity / 100;
   }
+
+  // Remove upload chip if present (will be re-added for D/E)
+  const existingUploadChip = $('#presetChips .upload-chip');
+  if (existingUploadChip) existingUploadChip.remove();
+
+  switch (mode) {
+    case 'A':
+      importActions.style.display = 'flex';
+      break;
+    case 'B':
+      presetChips.style.display = 'flex';
+      break;
+    case 'C':
+      drawerBtn.style.display = 'flex';
+      break;
+    case 'D':
+      presetChips.style.display = 'flex';
+      ensureUploadChip();
+      break;
+    case 'E':
+      presetChips.style.display = 'flex';
+      ensureUploadChip();
+      panelRight.style.display = 'none';
+      panelLeft.classList.add('full-width');
+      // Snap canvas overlay to 50%
+      $('#canvasOverlayOpacity').value = 50;
+      $('#canvasOverlayOpacityValue').textContent = '50%';
+      canvasOvl.style.opacity = '0.5';
+      // Always show canvas overlay controls in Mode E
+      $('#canvasOverlayControls').style.display = '';
+      if (canvasOvl.src) canvasOvl.style.display = 'block';
+      // Move variations strip to panel-left
+      variationsTarget.appendChild(variationsStrip);
+      break;
+  }
+}
+
+function ensureUploadChip() {
+  if ($('#presetChips .upload-chip')) return;
+  const btn = document.createElement('button');
+  btn.className = 'tool-btn upload-chip';
+  btn.textContent = '+ Upload';
+  btn.style.cssText = 'flex-shrink:0;font-size:0.75rem;padding:4px 10px;height:40px';
+  btn.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', (e) => handleFileToCanvas(e.target.files[0]));
+    input.click();
+  });
+  $('#presetChips').appendChild(btn);
 }
 
 // ========================================================================
@@ -583,84 +784,98 @@ function switchMode(mode) {
 async function loadSketches() {
   try {
     const res = await fetch(`${API}/api/sketches`);
-    const sketches = await res.json();
-    const container = $('#sketchPresets');
-    container.innerHTML = '';
-
-    for (const s of sketches) {
-      const btn = document.createElement('button');
-      btn.textContent = s.name;
-      btn.dataset.id = s.id;
-      btn.dataset.prompt = s.default_prompt;
-      btn.addEventListener('click', () => selectPreset(s.id, s.default_prompt));
-      container.appendChild(btn);
-    }
+    sketchesData = await res.json();
+    buildPresetUI();
   } catch (e) {
     console.error('Failed to load sketches:', e);
   }
 }
 
-async function selectPreset(id, defaultPrompt) {
-  selectedSketch = id;
-  uploadedBase64 = null;
+function createPresetChip(sketch, onClick) {
+  const chip = document.createElement('div');
+  chip.className = 'preset-chip';
+  chip.title = sketch.name;
+  const img = document.createElement('img');
+  img.src = `${API}/api/sketches/${sketch.id}`;
+  img.alt = sketch.name;
+  chip.appendChild(img);
+  chip.addEventListener('click', onClick);
+  return chip;
+}
 
-  // Highlight active button
-  document.querySelectorAll('.sketch-presets button').forEach(b => {
-    b.classList.toggle('active', b.dataset.id === id);
-  });
+function buildPresetUI() {
+  // Chips (modes B, D, E)
+  const chipsContainer = $('#presetChips');
+  chipsContainer.querySelectorAll('.preset-chip').forEach(c => c.remove());
 
-  // Load preview image
+  // Popover (mode A)
+  const popover = $('#presetPopover');
+  popover.innerHTML = '';
+
+  // Drawer presets (mode C)
+  const drawerPresets = $('#drawerPresets');
+  drawerPresets.innerHTML = '';
+
+  for (const s of sketchesData) {
+    // Chip for preset chips row
+    chipsContainer.appendChild(createPresetChip(s, () => loadPresetToCanvas(s.id, s.default_prompt)));
+
+    // Popover chip
+    popover.appendChild(createPresetChip(s, () => {
+      loadPresetToCanvas(s.id, s.default_prompt);
+      popover.classList.remove('open');
+    }));
+
+    // Drawer chip
+    drawerPresets.appendChild(createPresetChip(s, () => {
+      loadPresetToCanvas(s.id, s.default_prompt);
+      $('#canvasDrawer').classList.remove('open');
+    }));
+  }
+
+  // Re-add upload chip if layout needs it
+  if (currentLayout === 'D' || currentLayout === 'E') ensureUploadChip();
+}
+
+async function loadPresetToCanvas(id, defaultPrompt) {
   try {
     const res = await fetch(`${API}/api/sketches/${id}`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    showSketchPreview(url);
+    const img = new Image();
+    img.onload = () => {
+      drawImageToCanvas(img);
+      hasStrokes = true;
+      updateOverlayImage();
+      updateCanvasImgInfo();
+      scheduleSubmit();
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+    $('#promptInput').value = defaultPrompt;
   } catch (e) {
-    console.error('Failed to load sketch:', e);
+    console.error('Failed to load preset:', e);
   }
-
-  // Fill prompt
-  $('#promptInput').value = defaultPrompt;
-  $('#generateBtn').disabled = false;
 }
 
 // ========================================================================
-// Upload handling
+// File to canvas (upload/drop/paste)
 // ========================================================================
-$('#fileInput').addEventListener('change', handleUpload);
-
-function handleUpload(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  selectedSketch = null;
-  document.querySelectorAll('.sketch-presets button').forEach(b => b.classList.remove('active'));
-
+function handleFileToCanvas(file) {
+  if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = () => {
-    const dataUrl = reader.result;
-    uploadedBase64 = dataUrl.split(',')[1];
-    // Show in upload preview
-    const container = $('#uploadPreview');
-    container.innerHTML = '';
-    container.classList.add('has-image');
-    const img = document.createElement('img');
-    img.src = dataUrl;
-    img.onload = () => updateImgInfo($('#uploadImgInfo'), img.naturalWidth, img.naturalHeight, file.size);
-    container.appendChild(img);
-    $('#generateBtn').disabled = false;
+    const img = new Image();
+    img.onload = () => {
+      drawImageToCanvas(img);
+      hasStrokes = true;
+      updateOverlayImage();
+      updateCanvasImgInfo();
+      scheduleSubmit();
+    };
+    img.src = reader.result;
   };
   reader.readAsDataURL(file);
-}
-
-function showSketchPreview(src) {
-  const container = $('#sketchPreview');
-  container.innerHTML = '';
-  container.classList.add('has-image');
-  const img = document.createElement('img');
-  img.src = src;
-  img.onload = () => updateImgInfoFromUrl(src, img.naturalWidth, img.naturalHeight, '#presetImgInfo');
-  container.appendChild(img);
 }
 
 // ========================================================================
@@ -908,7 +1123,7 @@ function showImageContextMenu(e, imageUrl) {
   menu.appendChild(item);
 
   // "Cancel all generations" option — show when there are active jobs
-  const hasActiveJobs = varietyJobs.some(j => j.status === 'pending' || j.status === 'polling')
+  const hasActiveJobs = varietyBatch.jobs.some(j => j.status === 'pending' || j.status === 'submitted')
     || varietyIdleTimer
     || queueActiveCount(liveQueue) > 0;
   if (hasActiveJobs) {
@@ -971,7 +1186,7 @@ function confirmUseAsSketch(imageUrl) {
   dialog.className = 'confirm-dialog';
   dialog.innerHTML = `
     <p><strong>Use as input sketch?</strong></p>
-    <p style="font-size:0.8rem;color:var(--text-muted)">This will replace the current canvas and switch to Live Sketch mode.</p>
+    <p style="font-size:0.8rem;color:var(--text-muted)">This will replace the current canvas content.</p>
     <img class="confirm-preview" src="${imageUrl}" alt="Preview">
     <div class="confirm-buttons">
       <button class="confirm-btn secondary" data-action="cancel">Cancel</button>
@@ -1002,7 +1217,6 @@ function applyAsSketchInput(imageUrl) {
   img.onload = () => {
     drawImageToCanvas(img);
     hasStrokes = true;
-    switchMode('live');
     updateOverlayImage();
     updateCanvasImgInfo();
     scheduleSubmit();
@@ -1095,11 +1309,11 @@ $('#clearCanvasBtn').addEventListener('click', () => {
   abortVarietyBatch();
 });
 
-// Save sketch to disk
+// Save sketch to disk (transparent PNG)
 $('#saveSketchBtn').addEventListener('click', () => {
   const link = document.createElement('a');
   link.download = 'sketch.png';
-  link.href = canvasToWhiteBgDataURL();
+  link.href = canvas.toDataURL('image/png');
   link.click();
 });
 
@@ -1314,7 +1528,7 @@ async function showLiveResult(jobId) {
     addToHistory(url);
 
     // Fire variety batch after first live result
-    if (currentMode === 'live') startVarietyBatch();
+    startVarietyBatch();
   } catch (e) {
     console.error('Error loading live result:', e);
   }
@@ -1333,11 +1547,15 @@ function updateQueueStatus() {
 }
 
 // ========================================================================
-// Variety batch manager
+// Variety batch manager (uses synced variety-batch.ts pure functions)
 // ========================================================================
+let varietyPollTimers = new Map(); // externalId → interval timer
+
 function startVarietyBatch() {
   abortVarietyBatch();
-  varietyBatchGen++;
+
+  // New batch with bumped generation
+  varietyBatch = vbCreate(varietyBatch.generation + 1);
 
   // Capture current inputs for this batch (and potential idle extension)
   const dataUrl = canvasToWhiteBgDataURL();
@@ -1348,9 +1566,28 @@ function startVarietyBatch() {
     denoise: getDenoiseValue(),
   };
 
+  // Wire progress/completion callbacks
+  varietyBatch.onProgress = (completed, total) => {
+    updateVarietySpinner();
+  };
+  varietyBatch.onAllDone = () => {
+    updateVarietySpinner();
+    // If first batch just finished, start idle timer for extension
+    if (varietyBatch.totalFired === VARIETY_COUNT && varietyCapturedInputs) {
+      if (varietyIdleTimer) clearTimeout(varietyIdleTimer);
+      varietyIdleTimer = setTimeout(() => {
+        varietyIdleTimer = null;
+        if (varietyBatch.totalFired === VARIETY_COUNT && varietyCapturedInputs) {
+          fireVarietyJobs(VARIETY_IDLE_EXTRA);
+        }
+      }, VARIETY_IDLE_MS);
+    }
+  };
+
   // Show strip and clear contents
   $('#variationsStrip').classList.add('active');
   $('#variationsScroll').innerHTML = '';
+  varietyThumbMap = new Map();
 
   fireVarietyJobs(VARIETY_COUNT);
 }
@@ -1358,136 +1595,122 @@ function startVarietyBatch() {
 function fireVarietyJobs(count) {
   const { base64, prompt, steps, denoise } = varietyCapturedInputs;
   const scroll = $('#variationsScroll');
-  const gen = varietyBatchGen; // capture generation for stale-check
 
+  // Create placeholder thumbs for each job
+  const placeholders = [];
   for (let i = 0; i < count; i++) {
     const thumbEl = document.createElement('div');
     thumbEl.className = 'variations-thumb pending';
     scroll.appendChild(thumbEl);
-
-    const job = { jobId: null, status: 'pending', pollTimer: null, thumbEl };
-    varietyJobs.push(job);
-
-    // Fire request — capture job object + generation to detect stale batches
-    (async (j) => {
-      try {
-        const res = await fetch(`${API}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sketch: base64, prompt, steps, denoise, hd: false }),
-        });
-        if (gen !== varietyBatchGen) return; // batch was replaced
-        if (!res.ok) {
-          j.status = 'failed';
-          j.thumbEl.remove();
-          updateVarietySpinner();
-          return;
-        }
-        const data = await res.json();
-        if (gen !== varietyBatchGen) return; // batch was replaced
-        j.jobId = data.job_id;
-        j.status = 'polling';
-        j.pollTimer = setInterval(() => pollVarietyJob(j, gen), 1000);
-      } catch (e) {
-        if (gen !== varietyBatchGen) return; // batch was replaced
-        j.status = 'failed';
-        j.thumbEl.remove();
-        updateVarietySpinner();
-      }
-    })(job);
+    placeholders.push(thumbEl);
   }
 
+  let idx = 0;
+  const submitFn = async () => {
+    const res = await fetch(`${API}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sketch: base64, prompt, steps, denoise, hd: false }),
+    });
+    if (!res.ok) throw new Error('submit failed');
+    const data = await res.json();
+    const jobId = data.job_id;
+    // Link thumb to this external id
+    const thumb = placeholders[idx++];
+    varietyThumbMap.set(jobId, thumb);
+    // Start polling
+    const gen = varietyBatch.generation;
+    const timer = setInterval(() => pollVarietyJob(jobId, gen), 1000);
+    varietyPollTimers.set(jobId, timer);
+    return jobId;
+  };
+
+  vbFireJobs(varietyBatch, count, submitFn);
   updateVarietySpinner();
 }
 
 function updateVarietySpinner() {
   const spinner = $('#variationsSpinner');
-  const total = varietyJobs.length;
-  const completed = varietyJobs.filter(j => j.status === 'completed').length;
-  const done = varietyJobs.filter(j => j.status === 'completed' || j.status === 'failed').length;
+  const completed = vbCompletedCount(varietyBatch);
+  const total = varietyBatch.jobs.length;
 
-  if (done >= total) {
+  if (vbAllDone(varietyBatch) || total === 0) {
     spinner.textContent = '';
-    // If first batch just finished and we haven't extended yet, start idle timer
-    if (total === VARIETY_COUNT && varietyCapturedInputs) {
-      if (varietyIdleTimer) clearTimeout(varietyIdleTimer);
-      varietyIdleTimer = setTimeout(() => {
-        varietyIdleTimer = null;
-        if (varietyJobs.length === VARIETY_COUNT && varietyCapturedInputs) {
-          fireVarietyJobs(VARIETY_IDLE_EXTRA);
-        }
-      }, VARIETY_IDLE_MS);
-    }
   } else {
     spinner.textContent = `Generating... ${completed}/${total}`;
   }
 }
 
-async function pollVarietyJob(job, gen) {
-  // Guard: stop polling if batch was replaced or job already settled
-  if (gen !== varietyBatchGen || !job || !job.jobId
-      || job.status === 'completed' || job.status === 'failed') {
-    if (job && job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
+async function pollVarietyJob(externalId, gen) {
+  // Guard: stop polling if batch was replaced
+  if (gen !== varietyBatch.generation) {
+    const timer = varietyPollTimers.get(externalId);
+    if (timer) { clearInterval(timer); varietyPollTimers.delete(externalId); }
     return;
   }
 
   try {
-    const res = await fetch(`${API}/api/status/${job.jobId}`);
+    const res = await fetch(`${API}/api/status/${externalId}`);
     const data = await res.json();
 
     if (data.status === 'completed') {
-      job.status = 'completed';
-      if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
+      const timer = varietyPollTimers.get(externalId);
+      if (timer) { clearInterval(timer); varietyPollTimers.delete(externalId); }
 
       // Fetch result image
-      const imgRes = await fetch(`${API}/api/result/${job.jobId}`);
+      const imgRes = await fetch(`${API}/api/result/${externalId}`);
       const blob = await imgRes.blob();
       const url = URL.createObjectURL(blob);
 
       // Replace placeholder with image
-      job.thumbEl.classList.remove('pending');
-      job.thumbEl.innerHTML = '';
-      const img = document.createElement('img');
-      img.src = url;
-      job.thumbEl.appendChild(img);
+      const thumbEl = varietyThumbMap.get(externalId);
+      if (thumbEl) {
+        thumbEl.classList.remove('pending');
+        thumbEl.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = url;
+        thumbEl.appendChild(img);
 
-      // Click handler: show in main output
-      job.thumbEl.addEventListener('click', () => {
-        setOutputImage(url);
-        updateCanvasOverlay(url);
-        // Mark selected
-        document.querySelectorAll('.variations-thumb').forEach(t => t.classList.remove('selected'));
-        job.thumbEl.classList.add('selected');
-      });
-      job.thumbEl.addEventListener('contextmenu', (e) => showImageContextMenu(e, url));
+        // Click handler: show in main output
+        thumbEl.addEventListener('click', () => {
+          setOutputImage(url);
+          updateCanvasOverlay(url);
+          document.querySelectorAll('.variations-thumb').forEach(t => t.classList.remove('selected'));
+          thumbEl.classList.add('selected');
+        });
+        thumbEl.addEventListener('contextmenu', (e) => showImageContextMenu(e, url));
+      }
 
       addToHistory(url);
-      updateVarietySpinner();
+      vbComplete(varietyBatch, externalId);
 
     } else if (data.status === 'failed' || data.status === 'cancelled') {
-      job.status = 'failed';
-      if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
-      job.thumbEl.remove();
-      updateVarietySpinner();
+      const timer = varietyPollTimers.get(externalId);
+      if (timer) { clearInterval(timer); varietyPollTimers.delete(externalId); }
+      const thumbEl = varietyThumbMap.get(externalId);
+      if (thumbEl) thumbEl.remove();
+      vbFail(varietyBatch, externalId);
     }
   } catch (e) {
-    job.status = 'failed';
-    if (job.pollTimer) { clearInterval(job.pollTimer); job.pollTimer = null; }
-    job.thumbEl.remove();
-    updateVarietySpinner();
+    const timer = varietyPollTimers.get(externalId);
+    if (timer) { clearInterval(timer); varietyPollTimers.delete(externalId); }
+    const thumbEl = varietyThumbMap.get(externalId);
+    if (thumbEl) thumbEl.remove();
+    vbFail(varietyBatch, externalId);
   }
 }
 
 function abortVarietyBatch() {
   if (varietyIdleTimer) { clearTimeout(varietyIdleTimer); varietyIdleTimer = null; }
-  for (const job of varietyJobs) {
-    if (job.pollTimer) clearInterval(job.pollTimer);
-    if (job.jobId && (job.status === 'pending' || job.status === 'polling')) {
-      fetch(`${API}/api/cancel/${job.jobId}`, { method: 'POST' }).catch(() => {});
-    }
-  }
-  varietyJobs = [];
+  // Clear poll timers
+  for (const [, timer] of varietyPollTimers) clearInterval(timer);
+  varietyPollTimers = new Map();
+  // Abort pure batch (cancels via API)
+  vbAbort(varietyBatch, (externalId) => {
+    fetch(`${API}/api/cancel/${externalId}`, { method: 'POST' }).catch(() => {});
+  });
   varietyCapturedInputs = null;
+  varietyThumbMap = new Map();
   $('#variationsStrip').classList.remove('active');
   $('#variationsScroll').innerHTML = '';
   $('#variationsSpinner').textContent = '';
@@ -1614,7 +1837,7 @@ function scheduleSubmit() {
   if (debounceTimer) clearTimeout(debounceTimer);
   abortVarietyBatch();
   debounceTimer = setTimeout(() => {
-    if (currentMode === 'live' && hasStrokes) {
+    if (hasStrokes) {
       submitCanvasToQueue();
     }
   }, 300);
@@ -1851,6 +2074,7 @@ async function loadSessionThumbs(body, sessionId) {
       const img = document.createElement('img');
       img.src = url;
       img.addEventListener('click', () => openLightbox(url));
+      img.addEventListener('contextmenu', (e) => showImageContextMenu(e, url));
       thumbsDiv.appendChild(img);
     }
   }
@@ -1908,6 +2132,98 @@ async function downloadSessionZip(sessionId, label) {
 }
 
 // ========================================================================
+// Canvas drag-drop
+// ========================================================================
+const canvasWrap = $('#canvasWrap');
+
+canvasWrap.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  canvasWrap.classList.add('drop-active');
+});
+
+canvasWrap.addEventListener('dragleave', () => {
+  canvasWrap.classList.remove('drop-active');
+});
+
+canvasWrap.addEventListener('drop', (e) => {
+  e.preventDefault();
+  canvasWrap.classList.remove('drop-active');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    handleFileToCanvas(file);
+  }
+});
+
+// ========================================================================
+// Import action buttons (Mode A)
+// ========================================================================
+$('#presetDropdownBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const popover = $('#presetPopover');
+  if (popover.classList.contains('open')) {
+    popover.classList.remove('open');
+  } else {
+    const rect = e.target.getBoundingClientRect();
+    popover.style.left = rect.left + 'px';
+    popover.style.top = (rect.bottom + 4) + 'px';
+    popover.classList.add('open');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.preset-popover') && !e.target.closest('#presetDropdownBtn')) {
+    $('#presetPopover').classList.remove('open');
+  }
+});
+
+$('#uploadActionBtn').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.addEventListener('change', (e) => handleFileToCanvas(e.target.files[0]));
+  input.click();
+});
+
+$('#pasteActionBtn').addEventListener('click', async () => {
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const imageType = item.types.find(t => t.startsWith('image/'));
+      if (imageType) {
+        const blob = await item.getType(imageType);
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          drawImageToCanvas(img);
+          hasStrokes = true;
+          updateOverlayImage();
+          updateCanvasImgInfo();
+          scheduleSubmit();
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+        return;
+      }
+    }
+  } catch (e) {
+    console.error('Paste failed:', e);
+  }
+});
+
+// ========================================================================
+// Drawer (Mode C)
+// ========================================================================
+$('#drawerBtn').addEventListener('click', () => {
+  $('#canvasDrawer').classList.toggle('open');
+});
+
+$('#drawerFileInput').addEventListener('change', (e) => {
+  handleFileToCanvas(e.target.files[0]);
+  $('#canvasDrawer').classList.remove('open');
+  e.target.value = '';
+});
+
+// ========================================================================
 // Init
 // ========================================================================
 checkHealth();
@@ -1920,8 +2236,8 @@ loadWordList().then(initPrompt);
 const savedRange = localStorage.getItem('creativityRange');
 if (savedRange) { creativityRange = JSON.parse(savedRange); }
 updateCreativityRangeUI();
-// Default to live sketch mode
-switchMode('live');
+// Apply saved layout mode
+applyLayout(localStorage.getItem('layoutMode') || 'D');
 
 // Init IndexedDB and session
 initDB().then(async () => {
