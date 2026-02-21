@@ -175,6 +175,17 @@ NON-DETERMINISTIC: Different elements fail on each run (race condition)
 - **Env examples**: `.env.staging.example`, `.env.prod.example`
 - **Feature gating**: `PENCIL_SIGNUP_ENABLED` env var → exposed via `GET /api/config`
 
+### SSH Tunnel (Vast.ai → VPS)
+
+- **Service**: `llamasketch-tunnel.service` on VPS (systemd + autossh)
+- **Config**: `/etc/llamasketch/tunnel.conf` on VPS
+- **Log**: `/var/log/llamasketch/tunnel.log` or `journalctl -u llamasketch-tunnel`
+- **Update target**: `./scripts/update-tunnel.sh <host> <port>`
+- **First-time setup**: `./scripts/setup-tunnel.sh [host] [port]`
+- **Key**: `/etc/llamasketch/id_ed25519.vast.ai` on VPS (source: `~/secrets/llamasketch/id_ed25519.vast.ai`)
+- **How it works**: autossh maintains `-L 18188:localhost:18188` tunnel from VPS to Vast.ai instance. The tunnel binds to the **host's** `127.0.0.1:18188`.
+- **Docker networking**: The Docker container cannot reach the host's `127.0.0.1` directly. `docker-compose.yml` maps `host.docker.internal` → host via `extra_hosts: host-gateway`. The `.env` must use `PENCIL_COMFYUI_URL=http://host.docker.internal:18188` (not `127.0.0.1`).
+
 ### Branching Strategy
 
 - **`master`** — production branch, deploys to `llamasketch.com`
