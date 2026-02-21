@@ -123,6 +123,9 @@ Browser → FastAPI (port 8000) → ComfyUI (port 18188) → RTX 4090
 - [ ] **P3.3: Billing portal** — Stripe Customer Portal link for managing subscription
 - [ ] **P3.4: Free tier limits** — Rate limit by IP/fingerprint. Show upgrade prompt when limit hit.
 - [ ] **P3.5: Usage metering** — Track generations per billing period. Overage handling (soft cap + warning vs hard cutoff).
+- [ ] **P3.6: Lightning Network payments** — Bitcoin/Lightning micropayments as alternative to Stripe. Separate project/repo. Pay-per-generation model (sats per image) fits Lightning perfectly. See `docs/lightning-payments.md`.
+- [ ] **P3.7: Web3 wallet / USDT on Liquid** — Accept USDT (stablecoin) and L-BTC via Liquid Network. Compatible with Aqua, Green, SideSwap wallets. Eliminates BTC volatility concern. See `docs/lightning-payments.md`.
+- [ ] **P3.8: Unified payment modal** — Single top-up UI offering Card / Lightning / USDT. All rails credit the same internal ledger.
 
 ### Phase 4: Persistent Storage
 
@@ -159,6 +162,7 @@ Browser → FastAPI (port 8000) → ComfyUI (port 18188) → RTX 4090
 3. **Model updates** — FLUX.2 is evolving. How to deploy new models without downtime? Blue/green on Vast.ai is tricky.
 4. **NSFW filtering** — Need content moderation for generated images if there's a public gallery. Options: CLIP-based classifier, external API (AWS Rekognition), or manual review queue.
 5. **IP / legal** — Terms of service, generated image ownership, FLUX.2 license implications for commercial use.
+7. **Client-side encryption** — Users hold their own keys for image privacy. See `work-stack.md`. Trade-off: encrypted images can't be thumbnailed or moderated server-side.
 6. **Concurrency model** — Live sketch fires generations on every stroke pause. If 10 users are sketching simultaneously, that's 10+ jobs/sec. Need to model queue behavior and set expectations (latency vs throughput).
 
 ---
