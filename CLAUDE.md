@@ -142,6 +142,25 @@ NON-DETERMINISTIC: Different elements fail on each run (race condition)
 
 **Note**: Likely related to the GPU hardware defect (Issue #7).
 
+## Testing — Test-Driven Development
+
+- **TDD is mandatory** for all unit-testable components. The workflow is:
+  1. Write tests first in `tests/*.test.ts` that import from `src/*.ts`
+  2. Run tests — confirm they **fail** (RED)
+  3. Write the implementation in `src/*.ts`
+  4. Run tests — confirm they **pass** (GREEN)
+  5. Sync the inline copy into `static/index.html` (matching the queue-manager pattern)
+  6. Git commit
+
+- **Extract pure logic** from `index.html` into `src/*.ts` modules with no DOM dependencies. The pattern: types + pure functions that take data in and return data out. DOM interaction stays in `index.html`.
+
+- **Test runner**: `cd tests && npm test` (Vitest)
+
+- **Existing modules** (follow the same pattern):
+  - `src/queue-manager.ts` → `tests/queue-manager.test.ts`
+  - `src/canvas-tools.ts` → `tests/canvas-tools.test.ts`
+  - `src/variety-batch.ts` → `tests/variety-batch.test.ts`
+
 ## Work Stack & Planning
 
 - **`work-stack.md`** — Feature ideas and improvements backlog. Check before starting new work.
