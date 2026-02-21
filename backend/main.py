@@ -69,7 +69,7 @@ def _load_presets():
     from pathlib import Path
 
     # birds: real sketch file
-    birds_path = Path("img/input-sketch.png")
+    birds_path = Path("static/img/input-sketch.png")
     if birds_path.exists():
         PRESETS["birds"] = {
             "name": "Birds",
