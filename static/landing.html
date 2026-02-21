@@ -383,7 +383,7 @@ footer {
 </section>
 
 <footer>
-  &copy; 2026 LlamaSketch &middot; Powered by FLUX.2 Klein
+  LlamaSketch &mdash; an app by LlamaTree &middot; All rights reserved &middot; <script>document.write(new Date().getFullYear())</script> <span id="commitHash"></span>
 </footer>
 
 <script>
@@ -404,6 +404,10 @@ footer {
     apply(dark);
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   });
+  fetch('/api/config').then(function(r){return r.json()}).then(function(d){
+    var el = document.getElementById('commitHash');
+    if(el && d.git_commit && d.git_commit !== 'dev') el.textContent = '· ' + d.git_commit;
+  }).catch(function(){});
 })();
 </script>
 </body>

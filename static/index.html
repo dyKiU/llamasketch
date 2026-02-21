@@ -2431,5 +2431,14 @@ initDB().then(async () => {
   }
 });
 </script>
+<footer style="text-align:center;padding:12px 24px;font-size:0.75rem;color:var(--text-muted);border-top:1px solid var(--border);">
+  LlamaSketch &mdash; an app by LlamaTree &middot; All rights reserved &middot; <script>document.write(new Date().getFullYear())</script> <span id="appCommitHash"></span>
+</footer>
+<script>
+fetch('/api/config').then(function(r){return r.json()}).then(function(d){
+  var el=document.getElementById('appCommitHash');
+  if(el&&d.git_commit&&d.git_commit!=='dev') el.textContent='· '+d.git_commit;
+}).catch(function(){});
+</script>
 </body>
 </html>

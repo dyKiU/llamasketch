@@ -185,7 +185,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/api/config")
 async def config():
-    return {"signup_enabled": settings.signup_enabled}
+    return {"signup_enabled": settings.signup_enabled, "git_commit": settings.git_commit}
 
 
 @app.get("/api/health", response_model=HealthResponse)

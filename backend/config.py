@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     workflow_template: str = "workflow_template.json"
 
     signup_enabled: bool = False
+    git_commit: str = "dev"
 
 
 settings = Settings()

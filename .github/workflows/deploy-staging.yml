@@ -61,7 +61,7 @@ jobs:
         run: ssh staging "cd /root/llamasketch && git pull origin staging"
 
       - name: Rebuild and restart container
-        run: ssh staging "cd /root/llamasketch && docker compose build && docker compose up -d"
+        run: ssh staging 'cd /root/llamasketch && export PENCIL_GIT_COMMIT=$(git rev-parse --short=7 HEAD) && docker compose build && docker compose up -d'
 
       - name: Health check
         run: |
@@ -74,7 +74,9 @@ jobs:
 
       - name: Verify config
         run: |
-          SIGNUP=$(ssh staging "curl -sf http://127.0.0.1:8100/api/config | python3 -c 'import sys,json; print(json.load(sys.stdin)[\"signup_enabled\"])'")
+          CONFIG=$(ssh staging "curl -sf http://127.0.0.1:8100/api/config")
+          echo "config=$CONFIG"
+          SIGNUP=$(echo "$CONFIG" | python3 -c 'import sys,json; print(json.load(sys.stdin)["signup_enabled"])')
           echo "signup_enabled=$SIGNUP"
 
       - name: Deployment summary
