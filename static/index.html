@@ -202,6 +202,9 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 .tool-btn:hover { border-color: var(--text-muted); background: var(--preview-bg); }
 .tool-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 .canvas-toolbar .range-row { flex: 1; min-width: 120px; }
+.toolbar-overflow { display: contents; }
+.toolbar-more-btn { display: none; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.85rem; font-weight: 700; letter-spacing: 2px; line-height: 1; }
+.toolbar-more-btn:hover { border-color: var(--text-muted); background: var(--preview-bg); }
 .queue-status { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
 
 /* Context menu */
@@ -303,23 +306,46 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
 .onboarding-tip { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--accent); color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 0.95rem; font-weight: 500; z-index: 10; pointer-events: none; animation: pulse-tip 2s ease-in-out infinite; }
 @keyframes pulse-tip { 0%,100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); } }
 
-/* Responsive */
+/* Responsive — tablet */
 @media (max-width: 768px) {
   main { flex-direction: column; }
   .panel-left { border-right: none; border-bottom: 1px solid var(--border); max-width: 100%; }
   .panel-right { max-width: 100%; }
-  .preview-container, .output-preview, .form-group input, .form-group textarea, .canvas-wrapper { max-width: 100%; }
+  .preview-container, .output-preview, .form-group input, .form-group textarea,
+  .canvas-wrapper, .canvas-toolbar, .range-row, .overlay-controls,
+  .progress-bar-container, .import-actions, .preset-chips, .canvas-drawer { max-width: 100%; }
   .canvas-wrapper canvas { width: 100%; height: auto; }
   header h1 { font-size: 1rem; }
   .header-right { gap: 8px; font-size: 0.8rem; }
   .variations-header { flex-wrap: wrap; }
   .history-scroll { max-height: 120px; }
 }
+/* Responsive — phone */
 @media (max-width: 480px) {
-  header { padding: 8px 12px; }
-  .panel-left, .panel-right { padding: 8px; }
-  .toolbar-row { gap: 4px; }
-  .toolbar-row button { padding: 4px 8px; font-size: 0.75rem; }
+  header { padding: 8px 10px; flex-wrap: wrap; gap: 4px; }
+  header h1 { font-size: 0.95rem; white-space: nowrap; }
+  .header-right { gap: 6px; flex-wrap: wrap; }
+  .gpu-stats .gpu-label { display: none; }
+  .gpu-stats .gpu-bar { width: 36px; }
+  .gpu-stats .gpu-text { font-size: 0.65rem; min-width: 0; }
+  #sessionsBtn { padding: 4px 6px; font-size: 0.75rem; }
+  .health-indicator span:not(.status-dot) { display: none; }
+  .theme-toggle { padding: 4px 6px; font-size: 0.95rem; }
+  .panel-left, .panel-right { padding: 10px; }
+  .panel { padding: 10px; }
+  .canvas-toolbar { gap: 4px; }
+  .canvas-toolbar .tool-btn { padding: 4px 8px; font-size: 0.75rem; }
+  .toolbar-overflow { display: none; }
+  .toolbar-overflow.open { display: contents; }
+  .toolbar-more-btn { display: inline-flex; align-items: center; padding: 4px 8px; font-size: 0.75rem; }
+  .form-group label { font-size: 0.8rem; }
+  .form-group textarea { min-height: 48px; font-size: 0.85rem; }
+  .range-row { gap: 8px; }
+  .history-strip { padding: 8px 10px; }
+  .history-thumb { width: 52px; height: 52px; }
+  .section-label { font-size: 0.7rem; }
+  .variations-scroll { gap: 4px; }
+  .variations-thumb img { width: 100%; height: 100%; object-fit: cover; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -377,14 +403,17 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
       <button class="tool-btn" id="clearCanvasBtn">Clear</button>
     </div>
     <div class="canvas-toolbar">
-      <button class="tool-btn" id="saveSketchBtn">Save</button>
-      <button class="tool-btn" id="loadSketchBtn">Load
+      <button class="tool-btn" id="loadSketchBtn">Upload
         <input type="file" id="loadSketchInput" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
       </button>
-      <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
-      <button class="tool-btn" id="fitStretchBtn" data-fit="stretch">Stretch</button>
-      <button class="tool-btn active" id="fitFillBtn" data-fit="fill">Fill</button>
-      <button class="tool-btn" id="fitFitBtn" data-fit="fit">Fit</button>
+      <button class="toolbar-more-btn" id="toolbarMoreBtn" title="More tools">&middot;&middot;&middot;</button>
+      <div class="toolbar-overflow" id="toolbarOverflow">
+        <button class="tool-btn" id="saveSketchBtn">Save</button>
+        <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
+        <button class="tool-btn" id="fitStretchBtn" data-fit="stretch">Stretch</button>
+        <button class="tool-btn active" id="fitFillBtn" data-fit="fill">Fill</button>
+        <button class="tool-btn" id="fitFitBtn" data-fit="fit">Fit</button>
+      </div>
     </div>
 
     <!-- Import actions (Mode A) -->
@@ -1415,6 +1444,11 @@ $('#clearCanvasBtn').addEventListener('click', () => {
   canvasOverlayImg.style.display = 'none';
   $('#canvasOverlayControls').style.display = 'none';
   abortVarietyBatch();
+});
+
+// Toolbar overflow toggle (mobile)
+$('#toolbarMoreBtn').addEventListener('click', () => {
+  $('#toolbarOverflow').classList.toggle('open');
 });
 
 // Save sketch to disk (transparent PNG)
