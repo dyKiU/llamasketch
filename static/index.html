@@ -139,6 +139,16 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; align-items: flex-start
   border-top-color: var(--accent); border-radius: 50%; animation: varspin 0.8s linear infinite; }
 @keyframes varspin { to { transform: rotate(360deg); } }
 
+/* Generate More dropdown */
+.more-wrap { position: relative; display: inline-block; }
+.more-btn { padding: 2px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.75rem; transition: all 0.15s; }
+.more-btn:hover { border-color: var(--text-muted); background: var(--preview-bg); }
+.more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.more-menu { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 200; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 80px; display: none; }
+.more-menu.open { display: block; }
+.more-menu-item { padding: 5px 14px; font-size: 0.8rem; cursor: pointer; color: var(--text); text-align: right; }
+.more-menu-item:hover { background: var(--preview-bg); }
+
 /* Progress bar */
 .progress-bar-container { width: 100%; max-width: 400px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; display: none; }
 .progress-bar-container.active { display: block; }
@@ -429,6 +439,15 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
         <div class="variations-header">
           <div class="section-label">Variations</div>
           <span class="variations-spinner" id="variationsSpinner"></span>
+          <div class="more-wrap" id="moreWrap" style="display:none">
+            <button class="more-btn" id="moreBtn">+ More &#9662;</button>
+            <div class="more-menu" id="moreMenu">
+              <div class="more-menu-item" data-count="16">16</div>
+              <div class="more-menu-item" data-count="32">32</div>
+              <div class="more-menu-item" data-count="64">64</div>
+              <div class="more-menu-item" data-count="128">128</div>
+            </div>
+          </div>
         </div>
         <div class="variations-scroll" id="variationsScroll"></div>
       </div>
@@ -1633,11 +1652,25 @@ function updateVarietySpinner() {
   const spinner = $('#variationsSpinner');
   const completed = vbCompletedCount(varietyBatch);
   const total = varietyBatch.jobs.length;
+  const done = vbAllDone(varietyBatch);
 
-  if (vbAllDone(varietyBatch) || total === 0) {
+  if (done || total === 0) {
     spinner.textContent = '';
   } else {
     spinner.textContent = `Generating... ${completed}/${total}`;
+  }
+
+  // Show "More" button when all initial variations are done and inputs are captured
+  const moreWrap = $('#moreWrap');
+  if (done && total >= VARIETY_COUNT + VARIETY_IDLE_EXTRA && varietyCapturedInputs) {
+    moreWrap.style.display = '';
+    $('#moreBtn').disabled = false;
+  } else if (!done && total > VARIETY_COUNT + VARIETY_IDLE_EXTRA) {
+    // Bulk in progress — show but disabled
+    moreWrap.style.display = '';
+    $('#moreBtn').disabled = true;
+  } else {
+    moreWrap.style.display = 'none';
   }
 }
 
@@ -1714,7 +1747,40 @@ function abortVarietyBatch() {
   $('#variationsStrip').classList.remove('active');
   $('#variationsScroll').innerHTML = '';
   $('#variationsSpinner').textContent = '';
+  $('#moreWrap').style.display = 'none';
+  $('#moreMenu').classList.remove('open');
 }
+
+// ========================================================================
+// "Generate More" dropdown
+// ========================================================================
+$('#moreBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('#moreMenu').classList.toggle('open');
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.more-wrap')) {
+    $('#moreMenu').classList.remove('open');
+  }
+});
+
+$('#moreMenu').addEventListener('click', (e) => {
+  const item = e.target.closest('.more-menu-item');
+  if (!item) return;
+  const count = parseInt(item.dataset.count);
+  if (!count || !varietyCapturedInputs) return;
+
+  $('#moreMenu').classList.remove('open');
+
+  // Update onAllDone to re-enable the button after this bulk batch
+  varietyBatch.onAllDone = () => {
+    updateVarietySpinner();
+  };
+
+  fireVarietyJobs(count);
+  updateVarietySpinner();
+});
 
 // ========================================================================
 // Dark mode toggle
