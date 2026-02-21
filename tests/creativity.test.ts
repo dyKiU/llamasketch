@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  getEffectiveRange,
-  sliderToDenoise,
-  updateCreativityRange,
-} from "../src/creativity";
+import { getEffectiveRange, sliderToDenoise, updateCreativityRange } from "../src/creativity";
 
 describe("creativity", () => {
   describe("getEffectiveRange", () => {
@@ -29,8 +25,8 @@ describe("creativity", () => {
       // Range is 0.50–0.52 → spread 0.02 + padding = 0.12, but after pad still narrow
       // Actually: pad: min=0.45, max=0.57, spread=0.12 which is >= 0.10 so no expansion
       // Use tighter range: 0.50–0.50 → pad: 0.45–0.55, spread=0.10, just at limit
-      const r = getEffectiveRange({ min: 0.50, max: 0.50 });
-      expect(r.max - r.min).toBeGreaterThanOrEqual(0.10);
+      const r = getEffectiveRange({ min: 0.5, max: 0.5 });
+      expect(r.max - r.min).toBeGreaterThanOrEqual(0.1);
     });
 
     it("expansion near boundary: spread may be < 0.10 due to clamping", () => {
@@ -54,7 +50,7 @@ describe("creativity", () => {
       const r = getEffectiveRange({ min: 0.5, max: 0.5 });
       expect(r.min).toBeCloseTo(0.45, 5);
       expect(r.max).toBeCloseTo(0.55, 5);
-      expect(r.max - r.min).toBeCloseTo(0.10, 5);
+      expect(r.max - r.min).toBeCloseTo(0.1, 5);
     });
   });
 
@@ -74,7 +70,7 @@ describe("creativity", () => {
     it("maps 0.5 slider to range midpoint", () => {
       const d = sliderToDenoise(0.5, { min: 0.3, max: 0.7 });
       // effective range: 0.25–0.75, slider 0.5 → 0.50
-      expect(d).toBeCloseTo(0.50, 5);
+      expect(d).toBeCloseTo(0.5, 5);
     });
 
     it("returns full 0–1 range when no creativity tracked", () => {

@@ -50,9 +50,7 @@ export function addSubmission(
 export function shouldDisplay(queue: QueueState, entry: QueueEntry): boolean {
   if (entry.status !== "completed") return false;
   // True only if no other entry with higher seqNum has also completed
-  return !queue.submissions.some(
-    (e) => e.seqNum > entry.seqNum && e.status === "completed",
-  );
+  return !queue.submissions.some((e) => e.seqNum > entry.seqNum && e.status === "completed");
 }
 
 /** Remove an entry by jobId. */
@@ -61,16 +59,11 @@ export function removeEntry(queue: QueueState, jobId: string): void {
 }
 
 /** Find an entry by jobId. */
-export function findEntry(
-  queue: QueueState,
-  jobId: string,
-): QueueEntry | undefined {
+export function findEntry(queue: QueueState, jobId: string): QueueEntry | undefined {
   return queue.submissions.find((e) => e.jobId === jobId);
 }
 
 /** Count of active (non-terminal) entries. */
 export function activeCount(queue: QueueState): number {
-  return queue.submissions.filter(
-    (e) => e.status === "pending" || e.status === "polling",
-  ).length;
+  return queue.submissions.filter((e) => e.status === "pending" || e.status === "polling").length;
 }

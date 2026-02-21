@@ -9,14 +9,12 @@ export interface CreativityRange {
 }
 
 /** Pad the tracked range by 0.05 each side and enforce a minimum spread of 0.10. */
-export function getEffectiveRange(
-  range: CreativityRange | null,
-): CreativityRange {
+export function getEffectiveRange(range: CreativityRange | null): CreativityRange {
   if (!range) return { min: 0, max: 1 };
   const pad = 0.05;
   let min = Math.max(0, range.min - pad);
   let max = Math.min(1, range.max + pad);
-  if (max - min < 0.10) {
+  if (max - min < 0.1) {
     const mid = (min + max) / 2;
     min = Math.max(0, mid - 0.05);
     max = Math.min(1, mid + 0.05);
@@ -25,10 +23,7 @@ export function getEffectiveRange(
 }
 
 /** Map a 0–1 slider value to a denoise value within the effective range. */
-export function sliderToDenoise(
-  sliderPercent: number,
-  range: CreativityRange | null,
-): number {
+export function sliderToDenoise(sliderPercent: number, range: CreativityRange | null): number {
   const { min, max } = getEffectiveRange(range);
   return min + sliderPercent * (max - min);
 }

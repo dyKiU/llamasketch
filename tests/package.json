@@ -2,10 +2,18 @@
   "name": "pencil-flux-klein-tests",
   "private": true,
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint --config ../eslint.config.js ../src/ ../tests/ --ignore-pattern node_modules",
+    "format:check": "prettier --check ../src/**/*.ts ../tests/**/*.ts",
+    "format": "prettier --write ../src/**/*.ts ../tests/**/*.ts",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.1",
+    "prettier": "^3.8.1",
     "typescript": "^5.4.0",
+    "typescript-eslint": "^8.56.0",
     "vitest": "^3.0.0"
   }
 }

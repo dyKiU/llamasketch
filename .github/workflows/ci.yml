@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install test dependencies
+        run: cd tests && npm ci
+
+      - name: ESLint
+        run: npx eslint src/ tests/ --ignore-pattern node_modules
+
+      - name: Prettier
+        run: npx prettier --check 'src/**/*.ts' 'tests/**/*.ts'
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: cd tests && npm test

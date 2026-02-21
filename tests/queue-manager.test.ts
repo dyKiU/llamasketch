@@ -49,11 +49,7 @@ describe("QueueManager", () => {
     expect(evicted).not.toBeNull();
     expect(evicted!.jobId).toBe("job-a");
     expect(q.submissions).toHaveLength(MAX_QUEUE);
-    expect(q.submissions.map((e) => e.jobId)).toEqual([
-      "job-b",
-      "job-c",
-      "job-d",
-    ]);
+    expect(q.submissions.map((e) => e.jobId)).toEqual(["job-b", "job-c", "job-d"]);
   });
 
   it("shouldDisplay returns true for newest completed", () => {

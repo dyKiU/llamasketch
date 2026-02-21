@@ -75,9 +75,7 @@ export function fireJobs(
  * Returns true if found and updated, false otherwise.
  */
 export function completeJob(batch: BatchState, externalId: string): boolean {
-  const job = batch.jobs.find(
-    (j) => j.externalId === externalId && j.status === "submitted",
-  );
+  const job = batch.jobs.find((j) => j.externalId === externalId && j.status === "submitted");
   if (!job) return false;
   job.status = "completed";
   _emitProgress(batch);
@@ -88,9 +86,7 @@ export function completeJob(batch: BatchState, externalId: string): boolean {
  * Mark a job as failed by its externalId.
  */
 export function failJob(batch: BatchState, externalId: string): boolean {
-  const job = batch.jobs.find(
-    (j) => j.externalId === externalId && j.status === "submitted",
-  );
+  const job = batch.jobs.find((j) => j.externalId === externalId && j.status === "submitted");
   if (!job) return false;
   job.status = "failed";
   _emitProgress(batch);
@@ -101,17 +97,10 @@ export function failJob(batch: BatchState, externalId: string): boolean {
  * Abort: bumps generation (so in-flight submits are ignored),
  * calls cancelFn for each submitted job, and clears the job list.
  */
-export function abortBatch(
-  batch: BatchState,
-  cancelFn?: (externalId: string) => void,
-): void {
+export function abortBatch(batch: BatchState, cancelFn?: (externalId: string) => void): void {
   batch.generation++;
   for (const job of batch.jobs) {
-    if (
-      cancelFn &&
-      job.externalId &&
-      (job.status === "pending" || job.status === "submitted")
-    ) {
+    if (cancelFn && job.externalId && (job.status === "pending" || job.status === "submitted")) {
       cancelFn(job.externalId);
     }
   }
@@ -126,9 +115,7 @@ export function completedCount(batch: BatchState): number {
 
 /** Count of settled (completed + failed) jobs. */
 export function settledCount(batch: BatchState): number {
-  return batch.jobs.filter(
-    (j) => j.status === "completed" || j.status === "failed",
-  ).length;
+  return batch.jobs.filter((j) => j.status === "completed" || j.status === "failed").length;
 }
 
 /** Whether all fired jobs have settled. */

@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  formatSize,
-  randomPrompt,
-  STATUS_PROGRESS,
-  getProgressPercent,
-} from "../src/format-utils";
+import { formatSize, randomPrompt, getProgressPercent } from "../src/format-utils";
 
 describe("format-utils", () => {
   describe("formatSize", () => {

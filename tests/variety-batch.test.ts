@@ -162,9 +162,8 @@ describe("variety-batch", () => {
     const b = createBatch(1);
 
     // submitFn that resolves asynchronously
-    let resolvers: ((v: string) => void)[] = [];
-    const submitFn = () =>
-      new Promise<string>((res) => resolvers.push(res));
+    const resolvers: ((v: string) => void)[] = [];
+    const submitFn = () => new Promise<string>((res) => resolvers.push(res));
 
     fireJobs(b, 2, submitFn);
     expect(b.jobs).toHaveLength(2);
