@@ -155,6 +155,75 @@ Browser → FastAPI (port 8000) → ComfyUI (port 18188) → RTX 4090
 
 ---
 
+## GPU Compute Strategy — Availability vs Cost
+
+Vast.ai GPUs are cheap but ephemeral. Need a strategy that balances always-on responsiveness with cost efficiency as demand scales.
+
+### The tradeoff
+
+| Approach | Latency | Cost | Risk |
+|----------|---------|------|------|
+| Always-on (1 GPU 24/7) | ~2s | ~$216/mo | Paying for idle time at low traffic |
+| On-demand (spin up per request) | 3-7 min cold start | Pay only for use | Unacceptable UX for first user |
+| Warm pool (1 active + N standby) | ~2s active, ~60s failover | Middle ground | Needs orchestration |
+
+### Tiered scaling plan
+
+**Tier 1: Early stage (0-50 users)**
+- 1 always-on GPU during business hours (8am-midnight, ~16h/day)
+- Auto-shutdown overnight if no activity for 30 min
+- Cold start acceptable for overnight stragglers (~3-5 min wait + "warming up" UI)
+- Cost: ~$144/mo (16h/day * 30 days * $0.30/hr)
+
+**Tier 2: Growing (50-500 users)**
+- 1 always-on primary GPU (24/7)
+- 1 warm standby (models cached, ComfyUI running, no active jobs) — activated when primary queue depth > 2
+- Standby auto-shuts after 15 min idle
+- Cost: ~$216/mo base + ~$50-100/mo burst standby
+
+**Tier 3: Scale (500+ users)**
+- 2 always-on GPUs behind load balancer
+- Auto-scale pool: spin up additional GPUs when avg queue wait > 5s, spin down after 15 min idle
+- Pre-provisioned pool of 2-3 ready instances (models downloaded, not running) for fast scale-up (~60s vs 5 min)
+- Consider dedicated GPU (Lambda/CoreWeave A10 at ~$0.60/hr) for predictable baseline, Vast.ai for burst only
+
+### Key metrics to instrument
+
+- **Queue depth**: How many jobs waiting? (trigger scale-up at > 2)
+- **Queue wait time**: Time from submit to GPU start (target < 3s p95)
+- **GPU utilization**: % time GPU is computing vs idle (target > 30% to justify cost)
+- **Cold start frequency**: How often users hit a cold start (target: < 1% of sessions)
+- **Cost per generation**: Total GPU spend / total generations (track weekly)
+
+### Demand-responsive pricing
+
+- **Queue priority**: Free tier waits behind paid users when GPUs are busy
+- **Burst credits**: Pro/Unlimited users get priority queue access; free tier throttled to 1 concurrent job
+- **Off-peak discount**: Cheaper generations during low-traffic hours — incentivize spreading load
+- **"GPU warming" indicator**: Show users when a GPU is spinning up vs ready — set expectations
+
+### When to go dedicated
+
+| Signal | Action |
+|--------|--------|
+| 3+ Vast.ai interruptions per week | Evaluate dedicated A10 |
+| GPU util consistently > 60% | Add second GPU |
+| > 200 paid users | Dedicated baseline GPU + Vast.ai for burst |
+| Cost per generation rising despite scale | Renegotiate or switch provider |
+
+Dedicated A10 (~$0.60/hr = $432/mo) vs Vast.ai RTX 4090 (~$0.30/hr = $216/mo): dedicated costs 2x but eliminates interruptions, defective GPU risk, and cold starts. Break-even on reliability at ~100 active users where downtime costs lost conversions.
+
+### Implementation milestones
+
+- [ ] **M1: Instrumentation** — Queue depth, wait time, GPU utilization metrics in `/api/gpu`. Structured JSON logs.
+- [ ] **M2: Auto-shutdown** — Destroy Vast.ai instance after N minutes of zero jobs. API returns "warming up" to clients.
+- [ ] **M3: Auto-start** — First request with no GPU triggers Vast.ai instance creation via API. Return estimated wait time.
+- [ ] **M4: Warm standby** — Pool manager: 1 active + 1 standby. Promote on failure. Replenish in background.
+- [ ] **M5: Multi-backend load balancer** — Route `/api/generate` across GPU backends. Health-check each every 30s.
+- [ ] **M6: Cost dashboard** — Daily/weekly GPU spend, cost per generation, utilization. Alert on threshold breach.
+
+---
+
 ## Open Questions
 
 1. **Vast.ai vs dedicated GPU** — Vast.ai is cheap but unreliable (defective GPUs, interruptions, inconsistent availability). At what user count does a dedicated A10/A100 on Lambda/CoreWeave make sense? (~$1.10/hr for A100 = $792/mo, but rock-solid)
