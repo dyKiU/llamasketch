@@ -163,8 +163,8 @@ NON-DETERMINISTIC: Different elements fail on each run (race condition)
 
 ## Deployment — Staging & Production
 
-- **Server**: InterServer VPS (shared with llamatrust.com). SSH details in `~/secrets/llamasketch/server.md` — **never commit secrets to the repo**.
-- **SSH keys**: Use keys in `~/.ssh/` — never read or display key file contents.
+- **Server**: InterServer VPS `vps-3291984`. SSH details in `~/secrets/llamasketch/server.md` — **never commit secrets to the repo**.
+- **SSH**: `ssh vps-3291984` (alias) or `ssh -i ~/.ssh/vps-3291984.key -p 2222 root@<ip>`. Never read or display key file contents.
 - **Architecture**: nginx (host, SSL termination) → Docker container (FastAPI + uvicorn).
 - **Staging**: `staging.llamasketch.com` — signup enabled, port 8100
 - **Production**: `llamasketch.com` — signup locked (`PENCIL_SIGNUP_ENABLED=false`), port 8200
@@ -174,6 +174,15 @@ NON-DETERMINISTIC: Different elements fail on each run (race condition)
 - **Docker**: `Dockerfile` + `docker-compose.yml` in project root
 - **Env examples**: `.env.staging.example`, `.env.prod.example`
 - **Feature gating**: `PENCIL_SIGNUP_ENABLED` env var → exposed via `GET /api/config`
+
+### Branching Strategy
+
+- **`master`** — production branch, deploys to `llamasketch.com`
+- **`staging`** — staging branch, deploys to `staging.llamasketch.com`
+- Feature work happens on `master` (or feature branches merged into `master`)
+- When ready to test: merge `master` → `staging` and deploy
+- When staging is verified: `staging` and `master` stay in sync for prod deploy
+- Never push untested changes directly to `staging` — always flow through `master` first
 
 ## Work Stack & Planning
 
