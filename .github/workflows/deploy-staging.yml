@@ -1,0 +1,88 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci && cd tests && npm ci
+
+      - name: ESLint
+        run: npx eslint src/ tests/ --ignore-pattern node_modules
+
+      - name: Prettier
+        run: npx prettier --check 'src/**/*.ts' 'tests/**/*.ts'
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: cd tests && npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.STAGING_SSH_PORT }} ${{ secrets.STAGING_SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config << EOF
+          Host staging
+            HostName ${{ secrets.STAGING_SERVER_IP }}
+            User root
+            Port ${{ secrets.STAGING_SSH_PORT }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Verify SSH connection
+        run: ssh staging "echo 'SSH OK'"
+
+      - name: Pull latest code
+        run: ssh staging "cd /root/llamasketch && git pull origin staging"
+
+      - name: Rebuild and restart container
+        run: ssh staging 'cd /root/llamasketch && export PENCIL_GIT_COMMIT=$(git rev-parse --short=7 HEAD) && docker compose build && docker compose up -d'
+
+      - name: Health check
+        run: |
+          sleep 3
+          ssh staging "curl -sf http://127.0.0.1:8100/api/health" || {
+            echo "Health check failed!"
+            ssh staging "docker compose -f /root/llamasketch/docker-compose.yml logs --tail 20"
+            exit 1
+          }
+
+      - name: Verify config
+        run: |
+          CONFIG=$(ssh staging "curl -sf http://127.0.0.1:8100/api/config")
+          echo "config=$CONFIG"
+          SIGNUP=$(echo "$CONFIG" | python3 -c 'import sys,json; print(json.load(sys.stdin)["signup_enabled"])')
+          echo "signup_enabled=$SIGNUP"
+
+      - name: Deployment summary
+        run: |
+          echo "### Staging Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: https://staging.llamasketch.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY

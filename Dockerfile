@@ -7,7 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ backend/
 COPY static/ static/
-COPY img/ img/
 COPY workflow_template.json .
 
 EXPOSE 8000

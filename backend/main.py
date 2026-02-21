@@ -69,7 +69,7 @@ def _load_presets():
     from pathlib import Path
 
     # birds: real sketch file
-    birds_path = Path("img/input-sketch.png")
+    birds_path = Path("static/img/input-sketch.png")
     if birds_path.exists():
         PRESETS["birds"] = {
             "name": "Birds",
@@ -185,7 +185,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/api/config")
 async def config():
-    return {"signup_enabled": settings.signup_enabled}
+    return {"signup_enabled": settings.signup_enabled, "git_commit": settings.git_commit}
 
 
 @app.get("/api/health", response_model=HealthResponse)
