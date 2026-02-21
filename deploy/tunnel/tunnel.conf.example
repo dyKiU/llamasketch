@@ -1,0 +1,8 @@
+# Vast.ai SSH tunnel configuration
+# Copy to /etc/llamasketch/tunnel.conf on VPS and fill in values
+VASTAI_HOST=ssh7.vast.ai
+VASTAI_PORT=34749
+VASTAI_USER=root
+VASTAI_KEY=/etc/llamasketch/id_ed25519.vast.ai
+LOCAL_PORT=18188
+REMOTE_PORT=18188

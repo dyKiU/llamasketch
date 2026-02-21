@@ -1,0 +1,24 @@
+[Unit]
+Description=LlamaSketch SSH tunnel to Vast.ai GPU
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/etc/llamasketch/tunnel.sh
+Restart=always
+RestartSec=5
+Environment=AUTOSSH_GATETIME=0
+
+# Logging
+StandardOutput=append:/var/log/llamasketch/tunnel.log
+StandardError=append:/var/log/llamasketch/tunnel.log
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/log/llamasketch
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
