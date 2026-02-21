@@ -39,5 +39,5 @@ exec autossh -M 0 \
     -o UserKnownHostsFile=/dev/null \
     -i "$VASTAI_KEY" \
     -p "$VASTAI_PORT" \
-    -N -L "${LOCAL_PORT}:localhost:${REMOTE_PORT}" \
+    -N -L "0.0.0.0:${LOCAL_PORT}:localhost:${REMOTE_PORT}" \
     "${VASTAI_USER}@${VASTAI_HOST}"
