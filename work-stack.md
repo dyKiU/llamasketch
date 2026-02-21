@@ -68,6 +68,44 @@ Esc or click-outside to close. Canvas stays visible while drawer is open.
 
 ---
 
+## User Database + Security Audit
+
+User accounts, auth, and quota tracking. Currently no database — jobs are in-memory and lost on restart.
+
+### Database choice: Supabase
+
+Supabase over raw Postgres for faster iteration: built-in auth (email + OAuth), row-level security, JS client SDK, hosted dashboard, and a generous free tier. Avoids building auth from scratch. Can migrate to self-hosted Postgres later if needed.
+
+### Schema (initial)
+
+- `auth.users` — Supabase built-in (email, OAuth, JWT)
+- `public.profiles(id, user_id, plan, credits_remaining, created_at)` — linked to auth.users
+- `public.generations(id, user_id, prompt, created_at, r2_key)` — generation log for quota + history
+
+### Security audit checklist
+
+- [ ] **Auth flows**: Email verification required, OAuth state validation, JWT expiry + refresh
+- [ ] **Row-level security (RLS)**: Users can only read/write their own rows — no cross-user data leaks
+- [ ] **API auth middleware**: Every `/api/generate` call validates JWT. Reject unauthenticated (except free tier via IP/fingerprint)
+- [ ] **Rate limiting**: Per-user and per-IP. Prevent abuse of free tier (IP rotation, throwaway emails)
+- [ ] **Input validation**: Prompt length limits, image size limits (already have `max_image_size`), sanitize all user input
+- [ ] **CORS policy**: Tighten from `allow_origins=["*"]` to actual domains only
+- [ ] **SQL injection**: Supabase client uses parameterized queries — verify no raw SQL anywhere
+- [ ] **Secrets management**: No credentials in code or repo. `.env` files on server only, `~/secrets/` locally
+- [ ] **HTTPS enforcement**: All traffic over TLS, HSTS header, no mixed content
+- [ ] **Dependency audit**: `pip audit` + `npm audit` in CI pipeline
+- [ ] **CSP headers**: Add Content-Security-Policy to nginx configs
+
+### Milestones
+
+- [ ] **M1: Supabase project setup** — Create project, enable email + Google OAuth, set redirect URLs for staging/prod
+- [ ] **M2: Database schema + RLS** — Create `profiles` and `generations` tables with row-level security policies
+- [ ] **M3: Backend auth middleware** — Validate Supabase JWT on API endpoints, extract user_id, enforce quotas
+- [ ] **M4: Frontend auth UI** — Login/signup modal, session persistence, show user state in header
+- [ ] **M5: Security audit pass** — Run through checklist above, tighten CORS, add CSP, run dependency audits
+
+---
+
 ## Client-Side Image Encryption (Low Priority)
 
 Users hold their own keys — generated images are encrypted before storage so neither the server nor anyone without the key can view them.

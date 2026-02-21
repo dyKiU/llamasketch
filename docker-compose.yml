@@ -1,0 +1,7 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - "${PENCIL_PORT:-8100}:8000"
+    restart: unless-stopped

@@ -18,5 +18,7 @@ class Settings(BaseSettings):
 
     workflow_template: str = "workflow_template.json"
 
+    signup_enabled: bool = False
+
 
 settings = Settings()

@@ -183,6 +183,11 @@ async def app_page():
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+@app.get("/api/config")
+async def config():
+    return {"signup_enabled": settings.signup_enabled}
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
     try:
