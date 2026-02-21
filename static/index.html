@@ -3,7 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pencil Flux Klein</title>
+<title>LlamaSketch — Live AI Sketch to Image</title>
+<meta name="description" content="Draw a sketch, get an AI-generated image in real time. Powered by FLUX.2 Klein. Free to try, no account needed.">
+
+<!-- Favicon -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<!-- Open Graph / Social -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="LlamaSketch — Live AI Sketch to Image">
+<meta property="og:description" content="Draw a sketch, get an AI-generated image in real time. Powered by FLUX.2 Klein.">
+<meta property="og:image" content="/favicon-512.png">
+<meta property="og:url" content="https://llamasketch.com">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="LlamaSketch — Live AI Sketch to Image">
+<meta name="twitter:description" content="Draw a sketch, get an AI-generated image in real time.">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -272,19 +289,46 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
 /* Mode E: full width panel */
 .panel-left.full-width { flex: 1 1 100%; border-right: none; }
 
+/* Toast notifications */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { pointer-events: auto; padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: toast-in 0.25s ease-out, toast-out 0.3s ease-in forwards; animation-delay: 0s, 3.5s; max-width: 360px; word-break: break-word; }
+.toast.error { background: #d32f2f; }
+.toast.warn { background: #f57c00; }
+.toast.info { background: #1976d2; }
+.toast.success { background: #388e3c; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* Onboarding tooltip */
+.onboarding-tip { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--accent); color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 0.95rem; font-weight: 500; z-index: 10; pointer-events: none; animation: pulse-tip 2s ease-in-out infinite; }
+@keyframes pulse-tip { 0%,100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); } }
+
 /* Responsive */
 @media (max-width: 768px) {
   main { flex-direction: column; }
-  .panel-left { border-right: none; border-bottom: 1px solid var(--border); }
+  .panel-left { border-right: none; border-bottom: 1px solid var(--border); max-width: 100%; }
+  .panel-right { max-width: 100%; }
   .preview-container, .output-preview, .form-group input, .form-group textarea, .canvas-wrapper { max-width: 100%; }
+  .canvas-wrapper canvas { width: 100%; height: auto; }
+  header h1 { font-size: 1rem; }
+  .header-right { gap: 8px; font-size: 0.8rem; }
+  .variations-header { flex-wrap: wrap; }
+  .history-scroll { max-height: 120px; }
+}
+@media (max-width: 480px) {
+  header { padding: 8px 12px; }
+  .panel-left, .panel-right { padding: 8px; }
+  .toolbar-row { gap: 4px; }
+  .toolbar-row button { padding: 4px 8px; font-size: 0.75rem; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
+<div class="toast-container" id="toastContainer"></div>
 
 <header>
-  <h1>Pencil Flux Klein</h1>
+  <h1>LlamaSketch</h1>
   <div class="header-right">
     <div class="gpu-stats" id="gpuStats">
       <span class="gpu-label">VRAM</span>
@@ -317,10 +361,11 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
     <div class="section-label">Input Sketch</div>
 
     <!-- Canvas (always visible) -->
-    <div class="canvas-wrapper" id="canvasWrap">
+    <div class="canvas-wrapper" id="canvasWrap" style="position:relative;">
       <canvas id="sketchCanvas" width="512" height="512"></canvas>
       <img class="canvas-overlay-img" id="canvasOverlayImg" alt="">
       <button class="canvas-drawer-btn" id="drawerBtn" title="Add preset or upload">+</button>
+      <div class="onboarding-tip" id="onboardingTip" style="display:none;">Draw something!</div>
     </div>
     <div class="canvas-toolbar">
       <button class="tool-btn active" id="pencilBtn" data-tool="pencil">Pencil</button>
@@ -615,8 +660,37 @@ function _vbEmit(batch) {
 }
 
 // ========================================================================
+// Toast notifications
+// ========================================================================
+function showToast(message, type = 'error') {
+  const container = $('#toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// ========================================================================
+// Onboarding
+// ========================================================================
+function initOnboarding() {
+  if (localStorage.getItem('onboardingSeen')) return;
+  const tip = $('#onboardingTip');
+  tip.style.display = '';
+  const dismiss = () => {
+    tip.style.display = 'none';
+    localStorage.setItem('onboardingSeen', '1');
+    canvas.removeEventListener('pointerdown', dismiss);
+  };
+  const canvas = $('#sketchCanvas');
+  canvas.addEventListener('pointerdown', dismiss);
+}
+
+// ========================================================================
 // Health check
 // ========================================================================
+let _wasHealthy = true;
 async function checkHealth() {
   try {
     const res = await fetch(`${API}/api/health`);
@@ -626,13 +700,19 @@ async function checkHealth() {
     if (data.comfyui_reachable) {
       dot.className = 'status-dot connected';
       text.textContent = 'Connected';
+      if (!_wasHealthy) showToast('GPU reconnected', 'success');
+      _wasHealthy = true;
     } else {
       dot.className = 'status-dot disconnected';
       text.textContent = 'Disconnected';
+      if (_wasHealthy) showToast('GPU disconnected — generations paused', 'warn');
+      _wasHealthy = false;
     }
   } catch {
     $('#healthDot').className = 'status-dot disconnected';
     $('#healthText').textContent = 'Backend offline';
+    if (_wasHealthy) showToast('Server unreachable', 'error');
+    _wasHealthy = false;
   }
 }
 
@@ -1502,6 +1582,7 @@ async function submitCanvasToQueue() {
 
     if (!res.ok) {
       console.error('Live submit failed:', res.status);
+      showToast('Generation failed — server error', 'error');
       return;
     }
 
@@ -1519,6 +1600,7 @@ async function submitCanvasToQueue() {
     updateQueueStatus();
   } catch (e) {
     console.error('Live submit error:', e);
+    showToast('Could not reach server — check connection', 'error');
   }
 }
 
@@ -1567,6 +1649,7 @@ async function showLiveResult(jobId) {
     startVarietyBatch();
   } catch (e) {
     console.error('Error loading live result:', e);
+    showToast('Failed to load generated image', 'error');
   }
 }
 
@@ -2294,6 +2377,7 @@ $('#pasteActionBtn').addEventListener('click', async () => {
     }
   } catch (e) {
     console.error('Paste failed:', e);
+    showToast('Paste failed — no image in clipboard?', 'warn');
   }
 });
 
@@ -2318,6 +2402,7 @@ setInterval(checkHealth, 30000);
 pollGpuStats();
 setInterval(pollGpuStats, 1000);
 loadSketches();
+initOnboarding();
 loadWordList().then(initPrompt);
 // Load saved creativity range
 const savedRange = localStorage.getItem('creativityRange');
