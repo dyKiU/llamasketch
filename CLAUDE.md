@@ -142,6 +142,10 @@ NON-DETERMINISTIC: Different elements fail on each run (race condition)
 
 **Note**: Likely related to the GPU hardware defect (Issue #7).
 
+## TODO
+
+- **"Use as input sketch" context menu on output canvas**: The right-click context menu should always appear on the output preview image, not just on history thumbnails/variation thumbnails. Currently it's hard to trigger on the main output canvas. The `#outputPreview` contextmenu handler (around line 1364) only fires when there's a non-overlay `<img>` — may need to also handle cases where the click lands on the overlay img or the container itself.
+
 ## Model Files
 
 ```
