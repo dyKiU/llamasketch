@@ -198,6 +198,29 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 .confirm-dialog .confirm-btn.secondary { background: var(--input-bg); color: var(--text); }
 .confirm-dialog .confirm-btn.secondary:hover { background: var(--preview-bg); }
 
+/* Sessions modal */
+.sessions-modal { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+.sessions-dialog { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; width: 90%; max-width: 520px; max-height: 80vh; overflow-y: auto; padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.sessions-dialog h2 { font-size: 1rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+.sessions-close { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--text-muted); padding: 0 4px; line-height: 1; }
+.sessions-close:hover { color: var(--text); }
+.session-row { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.session-header { padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; user-select: none; }
+.session-header:hover { background: var(--preview-bg); }
+.session-header .session-arrow { margin-right: 8px; display: inline-block; transition: transform 0.15s; font-size: 0.7rem; }
+.session-header .session-arrow.open { transform: rotate(90deg); }
+.session-body { padding: 10px 14px; border-top: 1px solid var(--border); display: none; }
+.session-body.open { display: block; }
+.session-thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.session-thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; }
+.session-actions { display: flex; gap: 8px; }
+.session-actions button { padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; border: 1px solid var(--border); }
+.session-actions .dl-zip { background: var(--accent); color: #fff; border-color: var(--accent); }
+.session-actions .dl-zip:hover { background: var(--accent-hover); }
+.session-actions .del-session { background: var(--input-bg); color: #d32f2f; border-color: #d32f2f; }
+.session-actions .del-session:hover { background: #fdecea; }
+body.dark .session-actions .del-session:hover { background: #3a2020; }
+
 /* Responsive */
 @media (max-width: 768px) {
   main { flex-direction: column; }
@@ -205,6 +228,7 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
   .preview-container, .output-preview, .form-group input, .form-group textarea, .canvas-wrapper { max-width: 100%; }
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -217,6 +241,7 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
       <span class="gpu-text" id="gpuText">--</span>
       <span class="gpu-label" id="gpuJobs"></span>
     </div>
+    <button class="theme-toggle" id="sessionsBtn" title="Sessions">Sessions</button>
     <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
     <div class="health-indicator">
       <span class="status-dot disconnected" id="healthDot"></span>
@@ -826,7 +851,7 @@ async function showResult(jobId, elapsed) {
   }
 }
 
-function addToHistory(imageUrl) {
+function addToHistoryDOM(imageUrl) {
   const empty = $('#historyEmpty');
   if (empty) empty.remove();
 
@@ -839,6 +864,14 @@ function addToHistory(imageUrl) {
   thumb.addEventListener('click', () => openLightbox(imageUrl));
   thumb.addEventListener('contextmenu', (e) => showImageContextMenu(e, imageUrl));
   scroll.prepend(thumb);
+}
+
+function addToHistory(imageUrl) {
+  addToHistoryDOM(imageUrl);
+  // Persist to IndexedDB
+  if (db && currentSessionId) {
+    fetch(imageUrl).then(r => r.blob()).then(blob => dbSaveImage(blob)).catch(() => {});
+  }
 }
 
 // ========================================================================
@@ -1573,6 +1606,262 @@ function initPrompt() {
 }
 
 // ========================================================================
+// IndexedDB storage layer
+// ========================================================================
+let db = null;
+let currentSessionId = null;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('pencilflux', 1);
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('images')) {
+        const store = d.createObjectStore('images', { autoIncrement: true });
+        store.createIndex('sessionId', 'sessionId', { unique: false });
+      }
+      if (!d.objectStoreNames.contains('sessions')) {
+        d.createObjectStore('sessions', { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = (e) => { console.error('IndexedDB error:', e); resolve(null); };
+  });
+}
+
+function dbSaveImage(blob) {
+  if (!db || !currentSessionId) return Promise.resolve();
+  return new Promise((resolve) => {
+    const tx = db.transaction(['images', 'sessions'], 'readwrite');
+    tx.objectStore('images').add({ sessionId: currentSessionId, blob, timestamp: Date.now() });
+    // Bump image count on session
+    const sessStore = tx.objectStore('sessions');
+    const getReq = sessStore.get(currentSessionId);
+    getReq.onsuccess = () => {
+      const sess = getReq.result;
+      if (sess) {
+        sess.imageCount = (sess.imageCount || 0) + 1;
+        sessStore.put(sess);
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+
+function dbGetSessionImages(sessionId) {
+  if (!db) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const tx = db.transaction('images', 'readonly');
+    const idx = tx.objectStore('images').index('sessionId');
+    const req = idx.getAll(sessionId);
+    req.onsuccess = () => resolve(req.result.map(r => r.blob));
+    req.onerror = () => resolve([]);
+  });
+}
+
+function dbGetSessions() {
+  if (!db) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').getAll();
+    req.onsuccess = () => {
+      const sessions = req.result.sort((a, b) => b.createdAt - a.createdAt);
+      resolve(sessions);
+    };
+    req.onerror = () => resolve([]);
+  });
+}
+
+function dbDeleteSession(sessionId) {
+  if (!db) return Promise.resolve();
+  return new Promise((resolve) => {
+    const tx = db.transaction(['images', 'sessions'], 'readwrite');
+    // Delete all images for this session
+    const idx = tx.objectStore('images').index('sessionId');
+    const curReq = idx.openCursor(sessionId);
+    curReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) { cursor.delete(); cursor.continue(); }
+    };
+    // Delete session record
+    tx.objectStore('sessions').delete(sessionId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+
+function dbCreateSession(id) {
+  if (!db) return Promise.resolve();
+  const now = new Date(id);
+  const label = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+    now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return new Promise((resolve) => {
+    const tx = db.transaction('sessions', 'readwrite');
+    tx.objectStore('sessions').put({ id, label, createdAt: id, imageCount: 0 });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+
+// ========================================================================
+// Sessions modal
+// ========================================================================
+$('#sessionsBtn').addEventListener('click', openSessionsModal);
+
+async function openSessionsModal() {
+  const sessions = await dbGetSessions();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'sessions-modal';
+
+  const dialog = document.createElement('div');
+  dialog.className = 'sessions-dialog';
+
+  const header = document.createElement('h2');
+  header.innerHTML = 'Sessions <button class="sessions-close">&times;</button>';
+  dialog.appendChild(header);
+
+  header.querySelector('.sessions-close').addEventListener('click', () => overlay.remove());
+
+  if (sessions.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'color:var(--text-muted);font-size:0.85rem';
+    empty.textContent = 'No sessions yet. Generate some images!';
+    dialog.appendChild(empty);
+  }
+
+  for (const sess of sessions) {
+    const isCurrent = sess.id === currentSessionId;
+    const row = document.createElement('div');
+    row.className = 'session-row';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'session-header';
+    const arrow = document.createElement('span');
+    arrow.className = 'session-arrow' + (isCurrent ? ' open' : '');
+    arrow.textContent = '\u25B6';
+    const info = document.createElement('span');
+    info.textContent = (isCurrent ? 'Current \u2014 ' : '') + sess.label + ` (${sess.imageCount || 0})`;
+    const leftSide = document.createElement('span');
+    leftSide.appendChild(arrow);
+    leftSide.appendChild(document.createTextNode(' '));
+    leftSide.appendChild(info);
+    hdr.appendChild(leftSide);
+    row.appendChild(hdr);
+
+    const body = document.createElement('div');
+    body.className = 'session-body' + (isCurrent ? ' open' : '');
+    row.appendChild(body);
+
+    // Toggle expand/collapse
+    hdr.addEventListener('click', async () => {
+      const isOpen = body.classList.contains('open');
+      if (isOpen) {
+        body.classList.remove('open');
+        arrow.classList.remove('open');
+      } else {
+        body.classList.add('open');
+        arrow.classList.add('open');
+        // Load thumbnails if not already loaded
+        if (!body.dataset.loaded) {
+          body.dataset.loaded = '1';
+          await loadSessionThumbs(body, sess.id);
+        }
+      }
+    });
+
+    // Auto-load current session thumbnails
+    if (isCurrent) {
+      loadSessionThumbs(body, sess.id);
+    }
+
+    dialog.appendChild(row);
+  }
+
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  const onKey = (e) => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+}
+
+async function loadSessionThumbs(body, sessionId) {
+  const blobs = await dbGetSessionImages(sessionId);
+  body.innerHTML = '';
+
+  const thumbsDiv = document.createElement('div');
+  thumbsDiv.className = 'session-thumbs';
+
+  if (blobs.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'color:var(--text-muted);font-size:0.8rem';
+    empty.textContent = 'No images in this session';
+    thumbsDiv.appendChild(empty);
+  } else {
+    for (const blob of blobs) {
+      const url = URL.createObjectURL(blob);
+      const img = document.createElement('img');
+      img.src = url;
+      img.addEventListener('click', () => openLightbox(url));
+      thumbsDiv.appendChild(img);
+    }
+  }
+  body.appendChild(thumbsDiv);
+
+  const actions = document.createElement('div');
+  actions.className = 'session-actions';
+
+  if (blobs.length > 0) {
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'dl-zip';
+    dlBtn.textContent = 'Download ZIP';
+    dlBtn.addEventListener('click', async () => {
+      const sess = (await dbGetSessions()).find(s => s.id === sessionId);
+      dlBtn.textContent = 'Zipping...';
+      dlBtn.disabled = true;
+      await downloadSessionZip(sessionId, sess ? sess.label : 'session');
+      dlBtn.textContent = 'Download ZIP';
+      dlBtn.disabled = false;
+    });
+    actions.appendChild(dlBtn);
+  }
+
+  if (sessionId !== currentSessionId) {
+    const delBtn = document.createElement('button');
+    delBtn.className = 'del-session';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', async () => {
+      if (!confirm('Delete this session and all its images?')) return;
+      await dbDeleteSession(sessionId);
+      body.parentElement.remove();
+    });
+    actions.appendChild(delBtn);
+  }
+
+  body.appendChild(actions);
+}
+
+// ========================================================================
+// ZIP download
+// ========================================================================
+async function downloadSessionZip(sessionId, label) {
+  const images = await dbGetSessionImages(sessionId);
+  const zip = new JSZip();
+  images.forEach((blob, i) => {
+    const ext = blob.type === 'image/jpeg' ? 'jpg' : 'png';
+    zip.file(`image-${String(i + 1).padStart(3, '0')}.${ext}`, blob);
+  });
+  const content = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = `pencilflux-${label.replace(/[^a-z0-9]/gi, '-')}.zip`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ========================================================================
 // Init
 // ========================================================================
 checkHealth();
@@ -1587,6 +1876,26 @@ if (savedRange) { creativityRange = JSON.parse(savedRange); }
 updateCreativityRangeUI();
 // Default to live sketch mode
 switchMode('live');
+
+// Init IndexedDB and session
+initDB().then(async () => {
+  if (!db) return;
+  const sessions = await dbGetSessions();
+  const recent = sessions[0];
+  const ONE_HOUR = 60 * 60 * 1000;
+  if (recent && Date.now() - recent.createdAt < ONE_HOUR) {
+    currentSessionId = recent.id;
+    // Repopulate history strip from stored blobs
+    const blobs = await dbGetSessionImages(currentSessionId);
+    for (const blob of blobs) {
+      const url = URL.createObjectURL(blob);
+      addToHistoryDOM(url);
+    }
+  } else {
+    currentSessionId = Date.now();
+    await dbCreateSession(currentSessionId);
+  }
+});
 </script>
 </body>
 </html>
