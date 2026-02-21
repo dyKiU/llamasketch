@@ -845,6 +845,7 @@ function addToHistory(imageUrl) {
 // Context menu + confirm modal for "Use as input sketch"
 // ========================================================================
 let activeCtxMenu = null;
+let ctxMenuDismissHandler = null;
 
 function showImageContextMenu(e, imageUrl) {
   e.preventDefault();
@@ -896,8 +897,9 @@ function showImageContextMenu(e, imageUrl) {
 
   // Dismiss on click elsewhere or Escape
   setTimeout(() => {
-    document.addEventListener('click', dismissCtxMenu, { once: true });
-    document.addEventListener('contextmenu', dismissCtxMenu, { once: true });
+    ctxMenuDismissHandler = () => dismissCtxMenu();
+    document.addEventListener('click', ctxMenuDismissHandler);
+    document.addEventListener('contextmenu', ctxMenuDismissHandler);
   }, 0);
 }
 
@@ -905,6 +907,11 @@ function dismissCtxMenu() {
   if (activeCtxMenu) {
     activeCtxMenu.remove();
     activeCtxMenu = null;
+  }
+  if (ctxMenuDismissHandler) {
+    document.removeEventListener('click', ctxMenuDismissHandler);
+    document.removeEventListener('contextmenu', ctxMenuDismissHandler);
+    ctxMenuDismissHandler = null;
   }
 }
 
