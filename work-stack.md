@@ -26,6 +26,48 @@ Allow the user to select an area of the canvas to be "anchored" — that region 
 
 ---
 
+## Settings Drawer
+
+Right-side slide-in drawer (320px), triggered by the existing gear icon. Provides centralized control over canvas, generation, and output settings.
+
+### Sections
+
+- **Canvas**: Size (512/768/1024), fit mode, layout mode (side-by-side / stacked)
+- **Generation**: Steps, CFG, denoise strength
+- **Output**: Upscale toggle, auto-variations count, idle delay
+
+Esc or click-outside to close. Canvas stays visible while drawer is open.
+
+### Milestones
+
+- [ ] **M1: Drawer skeleton** — Slide-in panel, open/close animation, gear icon wiring, click-outside dismiss
+- [ ] **M2: Canvas section** — Size picker, fit mode toggle, layout mode toggle. Wire to existing canvas resize logic
+- [ ] **M3: Generation section** — Steps slider, CFG slider, denoise slider. Wire to generate request params
+- [ ] **M4: Output section** — Upscale toggle (pairs with upscale feature), auto-variations count, idle delay slider
+- [ ] **M5: Persist to localStorage** — Save all settings, restore on page load, reset-to-defaults button
+
+---
+
+## Post-Generation Upscale Button
+
+"2x Upscale" button on output preview after generation completes. Uses server-side Real-ESRGAN via ComfyUI.
+
+- **Model**: `RealESRGAN_x2plus.pth` (~67 MB), loaded into ComfyUI models dir
+- **Endpoint**: Synchronous `POST /api/upscale/{job_id}` — returns upscaled PNG directly (~1-2s)
+- **Frontend**: Button shows idle / loading spinner / done states on the output preview
+- **History**: Save both original + upscaled to IndexedDB session history
+- **Auto-upscale**: Optional toggle in settings drawer to upscale every generation automatically
+
+### Milestones
+
+- [ ] **M1: ComfyUI workflow + model download** — Add `RealESRGAN_x2plus.pth` to setup script, create upscale workflow JSON
+- [ ] **M2: Backend endpoint** — `POST /api/upscale/{job_id}` sends original image through upscale workflow, returns result
+- [ ] **M3: Frontend button** — "2x Upscale" button on output preview with idle/loading/done states
+- [ ] **M4: History integration** — Store upscaled variant alongside original in IndexedDB, show badge in history strip
+- [ ] **M5: Auto-upscale toggle** — Settings drawer toggle that automatically upscales every completed generation
+
+---
+
 ## Client-Side Image Encryption (Low Priority)
 
 Users hold their own keys — generated images are encrypted before storage so neither the server nor anyone without the key can view them.

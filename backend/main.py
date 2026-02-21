@@ -10,7 +10,7 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw
 
@@ -170,12 +170,17 @@ async def _run_generation(job: Job, image_bytes: bytes, prompt: str, steps: int,
 # ---------------------------------------------------------------------------
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
 @app.get("/")
 async def root():
-    return RedirectResponse(url="/static/index.html")
+    return FileResponse("static/landing.html", media_type="text/html")
+
+
+@app.get("/app")
+async def app_page():
+    return FileResponse("static/index.html", media_type="text/html")
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/api/health", response_model=HealthResponse)
