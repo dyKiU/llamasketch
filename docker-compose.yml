@@ -4,8 +4,5 @@ services:
     env_file: .env
     environment:
       - PENCIL_GIT_COMMIT=${PENCIL_GIT_COMMIT:-dev}
-    ports:
-      - "${PENCIL_PORT:-8100}:8000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: host
     restart: unless-stopped
