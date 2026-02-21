@@ -392,7 +392,7 @@ footer {
   var theme = localStorage.getItem('theme');
   function apply(dark) {
     document.body.classList.toggle('dark', dark);
-    toggle.textContent = dark ? '\u2600\uFE0F' : '\uD83C\uDF19';
+    toggle.innerHTML = dark ? '&#9788;' : '&#9790;';
   }
   if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     apply(true);
