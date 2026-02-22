@@ -9,4 +9,6 @@ COPY backend/ backend/
 COPY static/ static/
 COPY workflow_template.json .
 
+RUN mkdir -p /app/data
+
 CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PENCIL_PORT:-8000}
