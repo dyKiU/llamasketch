@@ -4,6 +4,7 @@ tests/node_modules/
 .env.*
 !.env.*.example
 img/
+!static/img/
 docs/
 !docs/.megaignore
 data/

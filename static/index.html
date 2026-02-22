@@ -487,8 +487,14 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
       </div>
     </div>
 
-    <!-- Shared controls (hidden — live mode always on) -->
-    <div id="sharedControls" style="display:none">
+    <!-- Advanced controls (collapsible) -->
+    <div style="margin-bottom:12px;max-width:400px">
+      <button class="tool-btn" id="advancedToggle" style="font-size:0.75rem;padding:4px 10px">Advanced &#9662;</button>
+    </div>
+    <div id="advancedControls" style="display:none;max-width:400px;margin-bottom:12px">
+      <div class="form-group">
+        <button class="tool-btn" id="randomPromptBtn" style="font-size:0.8rem">Random prompt</button>
+      </div>
       <div class="form-group">
         <label>Steps</label>
         <div class="range-row">
@@ -496,15 +502,14 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
           <span class="range-value" id="stepsValue">4</span>
         </div>
       </div>
-
       <div class="form-group" id="hdGroup">
         <label class="checkbox-row">
           <input type="checkbox" id="hdToggle">
           <span>HD mode <small style="color:var(--text-muted)">(two-pass: 512 then upscale to 1024)</small></span>
         </label>
       </div>
-
-      <button class="generate-btn" id="generateBtn" disabled>Generate</button>
+      <!-- Generate button (hidden — live mode always on) -->
+      <button class="generate-btn" id="generateBtn" disabled style="display:none">Generate</button>
       <div class="status-text" id="statusText"></div>
     </div>
 
@@ -1140,6 +1145,24 @@ $('#denoiseInput').addEventListener('input', (e) => {
   $('#denoiseValue').textContent = getDenoiseValue().toFixed(2);
   scheduleSubmit();
 });
+// Advanced toggle
+$('#advancedToggle').addEventListener('click', () => {
+  const panel = $('#advancedControls');
+  const btn = $('#advancedToggle');
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  btn.innerHTML = open ? 'Advanced &#9662;' : 'Advanced &#9652;';
+});
+
+// Random prompt button
+$('#randomPromptBtn').addEventListener('click', () => {
+  const p = randomPrompt(3);
+  if (p) {
+    $('#promptInput').value = p;
+    scheduleSubmit();
+  }
+});
+
 $('#strokeWidthInput').addEventListener('input', (e) => {
   const val = parseInt(e.target.value);
   toolState.strokeWidth = Math.max(1, Math.min(30, val));
@@ -2219,7 +2242,7 @@ function randomPrompt(count = 3) {
 function initPrompt() {
   const prompt = $('#promptInput');
   if (!prompt.value.trim()) {
-    prompt.value = randomPrompt(3);
+    prompt.value = 'a pencil sketch of a llama cartoon abstract logo';
   }
 }
 
