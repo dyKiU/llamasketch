@@ -49,6 +49,14 @@ class HealthResponse(BaseModel):
     error: Optional[str] = None
 
 
+class UsageResponse(BaseModel):
+    today: int
+    total: int
+    global_today: int
+    global_total: int
+    unique_users_today: int
+
+
 class Job:
     """Mutable job state — not a Pydantic model so we can update in place."""
 
