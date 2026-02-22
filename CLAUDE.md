@@ -185,6 +185,14 @@ NON-DETERMINISTIC: Different elements fail on each run (race condition)
 - **Key**: `/etc/llamasketch/id_ed25519.vast.ai` on VPS (source: `~/secrets/llamasketch/id_ed25519.vast.ai`)
 - **How it works**: autossh maintains `-L 18188:localhost:18188` tunnel from VPS to Vast.ai instance. Docker uses `network_mode: host` so the container shares the host's network and can reach the tunnel at `127.0.0.1:18188` directly.
 
+### Usage Tracking
+
+- **Storage**: SQLite at `data/usage.db` (Docker volume `usage-data`)
+- **IP privacy**: IPs are HMAC-SHA256 hashed with `PENCIL_USAGE_SALT` — raw IPs are never stored
+- **Tracked**: Every `/api/generate` call increments daily counter per IP hash
+- **Endpoints**: `GET /api/usage` (caller's own stats), `GET /api/usage/stats` (global aggregates)
+- **Config**: `PENCIL_USAGE_SALT` (required in production), `PENCIL_USAGE_DB` (default: `data/usage.db`)
+
 ### Branching Strategy
 
 - **`master`** — production branch, deploys to `llamasketch.com`
