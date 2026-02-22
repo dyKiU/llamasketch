@@ -21,5 +21,13 @@ class Settings(BaseSettings):
     signup_enabled: bool = False
     git_commit: str = "dev"
 
+    usage_salt: str = "dev-salt-change-in-production"
+    usage_db: str = "data/usage.db"
+
+    rate_limit_window: int = 60  # seconds
+    rate_limit_max: int = 15  # max requests per window per IP
+
+    cors_origins: str = "https://llamasketch.com,https://staging.llamasketch.com"
+
 
 settings = Settings()
