@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import collections
 import io
 import math
 import time
@@ -100,6 +101,29 @@ _load_presets()
 
 MAX_JOBS = 50
 jobs: dict[str, Job] = {}
+
+# Per-IP rate limiting: ip_hash -> deque of request timestamps
+_rate_limits: dict[str, collections.deque] = {}
+
+
+def _check_rate_limit(ip_hash: str) -> bool:
+    """Return True if the request is allowed, False if rate-limited."""
+    now = time.monotonic()
+    window = settings.rate_limit_window
+    max_req = settings.rate_limit_max
+
+    if ip_hash not in _rate_limits:
+        _rate_limits[ip_hash] = collections.deque()
+
+    dq = _rate_limits[ip_hash]
+    # Evict timestamps outside the window
+    while dq and dq[0] <= now - window:
+        dq.popleft()
+
+    if len(dq) >= max_req:
+        return False
+    dq.append(now)
+    return True
 
 
 def _evict_old_jobs():
@@ -231,6 +255,13 @@ async def get_sketch(sketch_id: str):
 async def generate(req: GenerateRequest, request: Request):
     ip = get_client_ip(request)
     ip_hash = hash_ip(ip, settings.usage_salt)
+
+    if not _check_rate_limit(ip_hash):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limited: max {settings.rate_limit_max} requests per {settings.rate_limit_window}s",
+        )
+
     tracker.record(ip_hash)
 
     # Resolve sketch image bytes
