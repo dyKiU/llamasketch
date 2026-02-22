@@ -213,6 +213,21 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 .ctx-menu-item { padding: 8px 16px; font-size: 0.85rem; cursor: pointer; color: var(--text); }
 .ctx-menu-item:hover { background: var(--preview-bg); }
 
+/* Use-as-sketch overlay button */
+.use-as-sketch-btn {
+  position: absolute; top: 4px; right: 4px;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(0,0,0,0.45); color: #fff;
+  font-size: 0.85rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5; opacity: 0; transition: opacity 0.15s;
+  line-height: 1; padding: 0;
+}
+.variations-thumb:hover .use-as-sketch-btn,
+.output-preview:hover .use-as-sketch-btn { opacity: 1; }
+@media (hover: none) { .use-as-sketch-btn { opacity: 0.8; } }
+
 /* Confirm modal */
 .confirm-modal { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center; }
@@ -401,6 +416,8 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
         <span class="range-value" id="strokeWidthValue">3</span>
       </div>
       <button class="tool-btn" id="clearCanvasBtn">Clear</button>
+      <button class="tool-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
+      <button class="tool-btn" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)">&#8631;</button>
     </div>
     <div class="canvas-toolbar">
       <button class="tool-btn" id="loadSketchBtn">Upload
@@ -701,6 +718,47 @@ function showToast(message, type = 'error') {
 }
 
 // ========================================================================
+// Long-press handler (mobile "use as sketch" access)
+// ========================================================================
+function addLongPressHandler(element, callback, duration = 500) {
+  let timer = null, startX = 0, startY = 0, fired = false;
+  function onStart(e) {
+    if (e.touches && e.touches.length > 1) return;
+    fired = false;
+    const t = e.touches ? e.touches[0] : e;
+    startX = t.clientX; startY = t.clientY;
+    timer = setTimeout(() => { fired = true; callback(e); }, duration);
+  }
+  function onMove(e) {
+    if (!timer) return;
+    const t = e.touches ? e.touches[0] : e;
+    if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) {
+      clearTimeout(timer); timer = null;
+    }
+  }
+  function onEnd(e) {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (fired) { e.preventDefault(); fired = false; }
+  }
+  element.addEventListener('touchstart', onStart, { passive: true });
+  element.addEventListener('touchmove', onMove, { passive: true });
+  element.addEventListener('touchend', onEnd);
+  element.addEventListener('touchcancel', () => { if (timer) { clearTimeout(timer); timer = null; } });
+}
+
+function createUseAsSketchBtn(imageUrl) {
+  const btn = document.createElement('button');
+  btn.className = 'use-as-sketch-btn';
+  btn.innerHTML = '&#9998;';
+  btn.title = 'Use as input sketch';
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    confirmUseAsSketch(imageUrl);
+  });
+  return btn;
+}
+
+// ========================================================================
 // Onboarding
 // ========================================================================
 function initOnboarding() {
@@ -972,6 +1030,7 @@ async function loadPresetToCanvas(id, defaultPrompt) {
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
+      pushUndoState();
       drawImageToCanvas(img);
       hasStrokes = true;
       updateOverlayImage();
@@ -995,6 +1054,7 @@ function handleFileToCanvas(file) {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
+      pushUndoState();
       drawImageToCanvas(img);
       hasStrokes = true;
       updateOverlayImage();
@@ -1226,6 +1286,7 @@ function addToHistoryDOM(imageUrl) {
   thumb.appendChild(img);
   thumb.addEventListener('click', () => openLightbox(imageUrl));
   thumb.addEventListener('contextmenu', (e) => showImageContextMenu(e, imageUrl));
+  addLongPressHandler(thumb, () => confirmUseAsSketch(imageUrl));
   scroll.prepend(thumb);
 }
 
@@ -1352,6 +1413,7 @@ function confirmUseAsSketch(imageUrl) {
 function applyAsSketchInput(imageUrl) {
   const img = new Image();
   img.onload = () => {
+    pushUndoState();
     drawImageToCanvas(img);
     hasStrokes = true;
     updateOverlayImage();
@@ -1421,9 +1483,51 @@ const ctx = canvas.getContext('2d');
 let isDrawing = false;
 let debounceTimer = null;
 let hasStrokes = false;
+const undoStack = [];
+const redoStack = [];
+let strokeStartState = null;
 
 // Init canvas to transparent (checkerboard shows through)
 ctx.clearRect(0, 0, 512, 512);
+
+// ========================================================================
+// Undo / Redo
+// ========================================================================
+function pushUndoState() {
+  undoStack.push(ctx.getImageData(0, 0, 512, 512));
+  redoStack.length = 0;
+  updateUndoRedoButtons();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(ctx.getImageData(0, 0, 512, 512));
+  ctx.putImageData(undoStack.pop(), 0, 0);
+  hasStrokes = !isCanvasBlank();
+  updateOverlayImage(); updateCanvasImgInfo(); scheduleSubmit();
+  updateUndoRedoButtons();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(ctx.getImageData(0, 0, 512, 512));
+  ctx.putImageData(redoStack.pop(), 0, 0);
+  hasStrokes = !isCanvasBlank();
+  updateOverlayImage(); updateCanvasImgInfo(); scheduleSubmit();
+  updateUndoRedoButtons();
+}
+
+function isCanvasBlank() {
+  const d = ctx.getImageData(0, 0, 512, 512).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] !== 0) return false;
+  return true;
+}
+
+function updateUndoRedoButtons() {
+  const u = $('#undoBtn'), r = $('#redoBtn');
+  if (u) u.disabled = !undoStack.length;
+  if (r) r.disabled = !redoStack.length;
+}
 
 // Tool buttons
 $('#pencilBtn').addEventListener('click', () => {
@@ -1437,6 +1541,7 @@ $('#eraserBtn').addEventListener('click', () => {
   $('#pencilBtn').classList.remove('active');
 });
 $('#clearCanvasBtn').addEventListener('click', () => {
+  pushUndoState();
   ctx.clearRect(0, 0, 512, 512);
   hasStrokes = false;
   updateQueueStatus();
@@ -1444,6 +1549,17 @@ $('#clearCanvasBtn').addEventListener('click', () => {
   canvasOverlayImg.style.display = 'none';
   $('#canvasOverlayControls').style.display = 'none';
   abortVarietyBatch();
+});
+$('#undoBtn').addEventListener('click', undo);
+$('#redoBtn').addEventListener('click', redo);
+
+// Undo/redo keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); redo(); }
+  }
 });
 
 // Toolbar overflow toggle (mobile)
@@ -1506,6 +1622,7 @@ $('#loadSketchInput').addEventListener('change', (e) => {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
+      pushUndoState();
       drawImageToCanvas(img);
       hasStrokes = true;
       updateOverlayImage();
@@ -1537,6 +1654,7 @@ function getCanvasPoint(e) {
 
 function startStroke(e) {
   e.preventDefault();
+  strokeStartState = ctx.getImageData(0, 0, 512, 512);
   isDrawing = true;
   const pt = getCanvasPoint(e);
   ctx.globalCompositeOperation = getStrokeStyle();
@@ -1563,6 +1681,12 @@ function endStroke(e) {
   e.preventDefault();
   isDrawing = false;
   ctx.globalCompositeOperation = 'source-over';
+  if (strokeStartState) {
+    undoStack.push(strokeStartState);
+    redoStack.length = 0;
+    strokeStartState = null;
+    updateUndoRedoButtons();
+  }
   hasStrokes = true;
   updateOverlayImage();
   updateCanvasImgInfo();
@@ -1846,6 +1970,8 @@ async function pollVarietyJob(externalId, gen) {
           thumbEl.classList.add('selected');
         });
         thumbEl.addEventListener('contextmenu', (e) => showImageContextMenu(e, url));
+        thumbEl.appendChild(createUseAsSketchBtn(url));
+        addLongPressHandler(thumbEl, () => confirmUseAsSketch(url));
       }
 
       addToHistory(url);
@@ -1942,6 +2068,23 @@ const overlayImg = document.createElement('img');
 overlayImg.className = 'overlay-img';
 $('#outputPreview').appendChild(overlayImg);
 
+// Persistent "use as sketch" button for output preview
+const outputSketchBtn = document.createElement('button');
+outputSketchBtn.className = 'use-as-sketch-btn';
+outputSketchBtn.innerHTML = '&#9998;';
+outputSketchBtn.title = 'Use as input sketch';
+outputSketchBtn.style.display = 'none';
+$('#outputPreview').appendChild(outputSketchBtn);
+outputSketchBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const img = $('#outputPreview').querySelector('img:not(.overlay-img):not(.use-as-sketch-btn)');
+  if (img && img.src) confirmUseAsSketch(img.src);
+});
+addLongPressHandler($('#outputPreview'), () => {
+  const img = $('#outputPreview').querySelector('img:not(.overlay-img):not(.use-as-sketch-btn)');
+  if (img && img.src) confirmUseAsSketch(img.src);
+});
+
 $('#outputPreview').addEventListener('contextmenu', (e) => {
   const img = $('#outputPreview').querySelector('img:not(.overlay-img)');
   if (img && img.src) {
@@ -1961,25 +2104,27 @@ function updateOverlayImage() {
 
 function setOutputImage(url) {
   const container = $('#outputPreview');
-  // Remove all children except overlay img
+  // Remove all children except overlay img and sketch button
   Array.from(container.children).forEach(child => {
-    if (child !== overlayImg) container.removeChild(child);
+    if (child !== overlayImg && child !== outputSketchBtn) container.removeChild(child);
   });
   const img = document.createElement('img');
   img.src = url;
   img.onload = () => updateImgInfoFromUrl(url, img.naturalWidth, img.naturalHeight, '#outputImgInfo');
   container.insertBefore(img, overlayImg);
+  outputSketchBtn.style.display = '';
 }
 
 function setOutputPlaceholder(text) {
   const container = $('#outputPreview');
   Array.from(container.children).forEach(child => {
-    if (child !== overlayImg) container.removeChild(child);
+    if (child !== overlayImg && child !== outputSketchBtn) container.removeChild(child);
   });
   const span = document.createElement('span');
   span.className = 'preview-placeholder';
   span.textContent = text;
   container.insertBefore(span, overlayImg);
+  outputSketchBtn.style.display = 'none';
 }
 
 // ========================================================================
@@ -2279,6 +2424,7 @@ async function loadSessionThumbs(body, sessionId) {
       img.src = url;
       img.addEventListener('click', () => openLightbox(url));
       img.addEventListener('contextmenu', (e) => showImageContextMenu(e, url));
+      addLongPressHandler(img, () => confirmUseAsSketch(url));
       thumbsDiv.appendChild(img);
     }
   }
@@ -2398,6 +2544,7 @@ $('#pasteActionBtn').addEventListener('click', async () => {
         const url = URL.createObjectURL(blob);
         const img = new Image();
         img.onload = () => {
+          pushUndoState();
           drawImageToCanvas(img);
           hasStrokes = true;
           updateOverlayImage();
