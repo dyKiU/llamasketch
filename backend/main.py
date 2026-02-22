@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -24,7 +24,9 @@ from .models import (
     JobStatus,
     JobStatusResponse,
     SketchInfo,
+    UsageResponse,
 )
+from .usage import UsageTracker, get_client_ip, hash_ip
 
 # ---------------------------------------------------------------------------
 # Preset sketches (generated at import time)
@@ -119,10 +121,13 @@ def _evict_old_jobs():
 # ---------------------------------------------------------------------------
 
 client = ComfyUIClient()
+tracker: UsageTracker
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global tracker
+    tracker = UsageTracker(settings.usage_db, settings.usage_salt)
     await client.start()
     yield
     await client.close()
@@ -223,7 +228,11 @@ async def get_sketch(sketch_id: str):
 
 
 @app.post("/api/generate", response_model=GenerateResponse)
-async def generate(req: GenerateRequest):
+async def generate(req: GenerateRequest, request: Request):
+    ip = get_client_ip(request)
+    ip_hash = hash_ip(ip, settings.usage_salt)
+    tracker.record(ip_hash)
+
     # Resolve sketch image bytes
     if req.sketch in PRESETS:
         image_bytes = PRESETS[req.sketch]["image_bytes"]
@@ -250,7 +259,7 @@ async def generate(req: GenerateRequest):
         prompt = req.prompt or settings.default_prompt
 
     # Create job
-    job_id = uuid.uuid4().hex[:12]
+    job_id = uuid.uuid4().hex
     job = Job(job_id)
     jobs[job_id] = job
     _evict_old_jobs()
@@ -330,3 +339,25 @@ async def job_result(job_id: str):
             detail=f"Job not completed (status: {job.status.value})",
         )
     return Response(content=job.result_image, media_type="image/png")
+
+
+@app.get("/api/usage", response_model=UsageResponse)
+async def usage(request: Request):
+    ip = get_client_ip(request)
+    ip_hash = hash_ip(ip, settings.usage_salt)
+    return UsageResponse(
+        today=tracker.get_today(ip_hash),
+        total=tracker.get_total(ip_hash),
+        global_today=tracker.get_global_today(),
+        global_total=tracker.get_global_total(),
+        unique_users_today=tracker.get_unique_today(),
+    )
+
+
+@app.get("/api/usage/stats")
+async def usage_stats():
+    return {
+        "global_today": tracker.get_global_today(),
+        "global_total": tracker.get_global_total(),
+        "unique_users_today": tracker.get_unique_today(),
+    }
