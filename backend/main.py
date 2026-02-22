@@ -71,6 +71,14 @@ def _img_to_png_bytes(img: Image.Image) -> bytes:
 def _load_presets():
     from pathlib import Path
 
+    # llama: real sketch file (default preset)
+    llama_path = Path("static/img/llama-sketch.png")
+    if llama_path.exists():
+        PRESETS["llama"] = {
+            "name": "Llama",
+            "default_prompt": "a pencil sketch of a llama cartoon abstract logo",
+            "image_bytes": llama_path.read_bytes(),
+        }
     # birds: real sketch file
     birds_path = Path("static/img/input-sketch.png")
     if birds_path.exists():
