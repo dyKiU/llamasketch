@@ -27,5 +27,7 @@ class Settings(BaseSettings):
     rate_limit_window: int = 60  # seconds
     rate_limit_max: int = 15  # max requests per window per IP
 
+    cors_origins: str = "https://llamasketch.com,https://staging.llamasketch.com"
+
 
 settings = Settings()
