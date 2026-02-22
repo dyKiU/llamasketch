@@ -6,3 +6,8 @@ services:
       - PENCIL_GIT_COMMIT=${PENCIL_GIT_COMMIT:-dev}
     network_mode: host
     restart: unless-stopped
+    volumes:
+      - usage-data:/app/data
+
+volumes:
+  usage-data:
