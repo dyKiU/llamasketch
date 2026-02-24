@@ -52,6 +52,8 @@ class HealthResponse(BaseModel):
 class UsageResponse(BaseModel):
     today: int
     total: int
+    daily_limit: int  # 0 = unlimited
+    remaining: int  # generations remaining today (-1 = unlimited)
     global_today: int
     global_total: int
     unique_users_today: int

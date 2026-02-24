@@ -29,6 +29,9 @@ from .models import (
 )
 from .usage import UsageTracker, get_client_ip, hash_ip
 
+if settings.dev_mode:
+    from .mock_comfyui import MockComfyUIClient
+
 # ---------------------------------------------------------------------------
 # Preset sketches (generated at import time)
 # ---------------------------------------------------------------------------
@@ -152,7 +155,7 @@ def _evict_old_jobs():
 # App lifecycle & client
 # ---------------------------------------------------------------------------
 
-client = ComfyUIClient()
+client = MockComfyUIClient() if settings.dev_mode else ComfyUIClient()
 tracker: UsageTracker
 
 
@@ -161,6 +164,8 @@ async def lifespan(app: FastAPI):
     global tracker
     tracker = UsageTracker(settings.usage_db, settings.usage_salt)
     await client.start()
+    if settings.dev_mode:
+        print("  [DEV MODE] Mock ComfyUI client active — no GPU required")
     yield
     await client.close()
 
@@ -223,11 +228,21 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/api/config")
 async def config():
-    return {"signup_enabled": settings.signup_enabled, "git_commit": settings.git_commit}
+    return {
+        "signup_enabled": settings.signup_enabled,
+        "git_commit": settings.git_commit,
+        "dev_mode": settings.dev_mode,
+        "daily_free_limit": settings.daily_free_limit,
+    }
 
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
+    if settings.dev_mode:
+        return HealthResponse(
+            comfyui_reachable=True,
+            comfyui_url="mock://dev-mode",
+        )
     try:
         reachable = await client.health_check()
         return HealthResponse(
@@ -270,6 +285,15 @@ async def generate(req: GenerateRequest, request: Request):
             status_code=429,
             detail=f"Rate limited: max {settings.rate_limit_max} requests per {settings.rate_limit_window}s",
         )
+
+    # Daily free limit enforcement
+    if settings.daily_free_limit > 0:
+        used_today = tracker.get_today(ip_hash)
+        if used_today >= settings.daily_free_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily limit reached: {settings.daily_free_limit} free generations per day",
+            )
 
     tracker.record(ip_hash)
 
@@ -344,6 +368,17 @@ async def gpu_stats():
         1 for j in jobs.values()
         if j.status not in (JobStatus.completed, JobStatus.failed, JobStatus.cancelled)
     )
+    if settings.dev_mode:
+        vram_total = 24 * 1024**3  # 24 GB simulated
+        vram_used = 8 * 1024**3
+        return {
+            "gpu_name": "Dev Mode (Mock GPU)",
+            "vram_total": vram_total,
+            "vram_free": vram_total - vram_used,
+            "torch_vram_total": vram_total,
+            "torch_vram_free": vram_total - vram_used,
+            "active_jobs": active_jobs,
+        }
     try:
         resp = await client._client.get("/system_stats")
         data = resp.json()
@@ -385,9 +420,14 @@ async def job_result(job_id: str):
 async def usage(request: Request):
     ip = get_client_ip(request)
     ip_hash = hash_ip(ip, settings.usage_salt)
+    today = tracker.get_today(ip_hash)
+    limit = settings.daily_free_limit
+    remaining = max(0, limit - today) if limit > 0 else -1
     return UsageResponse(
-        today=tracker.get_today(ip_hash),
+        today=today,
         total=tracker.get_total(ip_hash),
+        daily_limit=limit,
+        remaining=remaining,
         global_today=tracker.get_global_today(),
         global_total=tracker.get_global_total(),
         unique_users_today=tracker.get_unique_today(),

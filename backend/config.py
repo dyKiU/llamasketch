@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     model_config = {"env_prefix": "PENCIL_"}
 
+    dev_mode: bool = False
+    dev_mode_delay: float = 1.0  # simulated generation delay in seconds
+
     comfyui_url: str = "http://127.0.0.1:18188"
     comfyui_timeout: int = 30
     comfyui_poll_interval: float = 1.0
@@ -26,6 +29,8 @@ class Settings(BaseSettings):
 
     rate_limit_window: int = 60  # seconds
     rate_limit_max: int = 15  # max requests per window per IP
+
+    daily_free_limit: int = 20  # max free generations per IP per day (0 = unlimited)
 
     cors_origins: str = "https://llamasketch.com,https://staging.llamasketch.com"
 
