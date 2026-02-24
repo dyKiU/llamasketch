@@ -17,19 +17,26 @@ LlamaSketch is a sketch-to-AI-image web app. See `CLAUDE.md` for full project no
 
 **Staging site**: `https://staging.llamasketch.com` — auto-deployed via GitHub Actions on push to `staging` branch. Use this to verify deployed frontend changes in a browser.
 
-### Running the backend locally (optional)
+### Running the backend locally
 
-Only needed if working on backend Python code:
+**Dev mode** (recommended — no GPU required):
 ```bash
 mkdir -p data
-export PENCIL_CORS_ORIGINS="*"
-export PENCIL_USAGE_SALT="dev-salt"
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+PENCIL_DEV_MODE=true PENCIL_CORS_ORIGINS="*" PENCIL_USAGE_SALT="dev-salt" \
+  uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Dev mode uses `MockComfyUIClient` which returns synthetic gradient/checkerboard images with a "DEV MODE" badge. Health check reports connected, GPU stats show a simulated 24GB GPU. Fully functional for end-to-end frontend+backend development.
+
+**Without dev mode** (real ComfyUI required):
+```bash
+mkdir -p data
+PENCIL_CORS_ORIGINS="*" PENCIL_USAGE_SALT="dev-salt" \
+  uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 - `mkdir -p data` is required — the SQLite usage tracker needs the `data/` directory to exist
 - `PENCIL_CORS_ORIGINS="*"` is needed for local dev (default restricts to production domains)
-- ComfyUI will be unreachable — generation jobs will fail gracefully
 - `uvicorn` is installed to `~/.local/bin` — make sure `PATH` includes it
 
 ### Lint / typecheck / test commands
