@@ -24,10 +24,15 @@ from .models import (
     Job,
     JobStatus,
     JobStatusResponse,
+    PromptEnhanceRequest,
+    PromptEnhanceResponse,
     SketchInfo,
     UsageResponse,
+    VisionRequest,
+    VisionResponse,
 )
 from .usage import UsageTracker, get_client_ip, hash_ip
+from . import assist
 
 if settings.dev_mode:
     from .mock_comfyui import MockComfyUIClient
@@ -233,6 +238,7 @@ async def config():
         "git_commit": settings.git_commit,
         "dev_mode": settings.dev_mode,
         "daily_free_limit": settings.daily_free_limit,
+        "assist_enabled": assist.is_enabled(),
     }
 
 
@@ -441,3 +447,50 @@ async def usage_stats():
         "global_total": tracker.get_global_total(),
         "unique_users_today": tracker.get_unique_today(),
     }
+
+
+# ---------------------------------------------------------------------------
+# AI Assist routes (Layers 2+3)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/assist/vision", response_model=VisionResponse)
+async def assist_vision(req: VisionRequest, request: Request):
+    """Analyze a sketch image using Claude Haiku vision."""
+    if not assist.is_enabled():
+        raise HTTPException(status_code=503, detail="AI assist not configured")
+
+    ip = get_client_ip(request)
+    ip_hash = hash_ip(ip, settings.usage_salt)
+    if not _check_rate_limit(ip_hash):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limited: max {settings.rate_limit_max} requests per {settings.rate_limit_window}s",
+        )
+
+    try:
+        result = await assist.analyze_sketch_vision(req.image)
+        return VisionResponse(**result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI assist error: {exc}")
+
+
+@app.post("/api/assist/prompt", response_model=PromptEnhanceResponse)
+async def assist_prompt(req: PromptEnhanceRequest, request: Request):
+    """Enhance a user prompt using Claude Haiku."""
+    if not assist.is_enabled():
+        raise HTTPException(status_code=503, detail="AI assist not configured")
+
+    ip = get_client_ip(request)
+    ip_hash = hash_ip(ip, settings.usage_salt)
+    if not _check_rate_limit(ip_hash):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limited: max {settings.rate_limit_max} requests per {settings.rate_limit_window}s",
+        )
+
+    try:
+        result = await assist.enhance_prompt(req.prompt)
+        return PromptEnhanceResponse(**result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI assist error: {exc}")

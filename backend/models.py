@@ -59,6 +59,25 @@ class UsageResponse(BaseModel):
     unique_users_today: int
 
 
+class VisionRequest(BaseModel):
+    image: str = Field(..., description="Base64-encoded PNG sketch image")
+
+
+class VisionResponse(BaseModel):
+    subject: str
+    suggested_prompt: str
+    composition_tips: list[str]
+
+
+class PromptEnhanceRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=500)
+
+
+class PromptEnhanceResponse(BaseModel):
+    enhanced: str
+    alternatives: list[str]
+
+
 class Job:
     """Mutable job state — not a Pydantic model so we can update in place."""
 

@@ -142,11 +142,6 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; align-items: flex-start
 .output-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .overlay-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; opacity: 0; }
 
-/* Overlay controls */
-.overlay-controls { width: 100%; max-width: 400px; margin-bottom: 12px; display: none; }
-.overlay-controls.active { display: block; }
-.overlay-controls label { font-size: 0.85rem; font-weight: 500; margin-bottom: 4px; display: block; color: var(--text); }
-
 /* Variations strip */
 .variations-strip { width: 100%; margin-bottom: 12px; display: none; }
 .variations-strip.active { display: block; }
@@ -194,13 +189,18 @@ main { display: flex; flex: 1; gap: 0; overflow: hidden; align-items: flex-start
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
 .lightbox img { max-width: 80vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
 .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px;
-  background: rgba(255,255,255,0.15); border: none; border-radius: 50%; color: #fff; font-size: 1.5rem;
-  cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
-.lightbox-nav:hover { background: rgba(255,255,255,0.3); }
+  background: none; border: none; color: rgba(255,255,255,0.7); font-size: 2rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.15s; }
+.lightbox-nav:hover { color: #fff; }
 .lightbox-nav.prev { left: 16px; }
 .lightbox-nav.next { right: 16px; }
 .lightbox-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
   color: rgba(255,255,255,0.6); font-size: 0.8rem; }
+.lightbox-use-sketch { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.3); color: #fff;
+  border-radius: 6px; padding: 8px 20px; font-size: 0.85rem; cursor: pointer; white-space: nowrap;
+  transition: background 0.15s; z-index: 5; }
+.lightbox-use-sketch:hover { background: rgba(0,0,0,0.8); }
 
 /* Live Sketch canvas */
 .canvas-wrapper { width: 100%; max-width: 400px; margin-bottom: 12px; position: relative; }
@@ -374,6 +374,27 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
   .variations-scroll { gap: 4px; }
   .variations-thumb img { width: 100%; height: 100%; object-fit: cover; }
 }
+
+/* Sketch tips bar */
+.sketch-tips { max-width: 400px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; }
+.sketch-tip { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: #fff3cd; color: #856404; font-size: 0.8rem; border: 1px solid #ffc107; }
+body.dark .sketch-tip { background: #3d3520; color: #ffc107; border-color: #665a2e; }
+.sketch-tip-icon { flex-shrink: 0; font-size: 0.9rem; }
+.sketch-tip-dismiss { margin-left: auto; background: none; border: none; cursor: pointer; color: inherit; opacity: 0.6; font-size: 0.9rem; padding: 0 2px; }
+.sketch-tip-dismiss:hover { opacity: 1; }
+
+/* Assist buttons */
+.assist-btn { padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text-muted); cursor: pointer; font-size: 0.7rem; transition: all 0.15s; }
+.assist-btn:hover { border-color: var(--accent); color: var(--accent); }
+.assist-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.assist-btn.loading { opacity: 0.7; cursor: wait; }
+.prompt-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.prompt-label-row label { margin-bottom: 0; }
+
+/* Suggestion chips */
+.suggestion-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 400px; margin-bottom: 8px; }
+.suggestion-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.78rem; transition: all 0.15s; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggestion-chip:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -483,11 +504,17 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
     </div>
     <div class="img-info" id="canvasImgInfo"></div>
     <div class="queue-status" id="queueStatus"></div>
+    <div class="sketch-tips" id="sketchTips"></div>
 
     <!-- Prompt (always visible) -->
     <div class="form-group">
-      <label for="promptInput">Prompt</label>
+      <div class="prompt-label-row">
+        <label for="promptInput">Prompt</label>
+        <button class="assist-btn" id="suggestBtn" style="display:none" title="AI: Identify sketch &amp; suggest prompt">Suggest</button>
+        <button class="assist-btn" id="enhanceBtn" style="display:none" title="AI: Enhance your prompt">Enhance</button>
+      </div>
       <textarea id="promptInput" placeholder="Describe the image you want..."></textarea>
+      <div class="suggestion-chips" id="suggestionChips"></div>
     </div>
 
     <!-- Creativity slider (always visible) -->
@@ -540,13 +567,6 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
         <span class="preview-placeholder">Result will appear here</span>
       </div>
       <div class="img-info" id="outputImgInfo"></div>
-      <div class="overlay-controls" id="overlayControls">
-        <label>Sketch overlay</label>
-        <div class="range-row">
-          <input type="range" id="overlayOpacity" min="0" max="100" value="0">
-          <span class="range-value" id="overlayOpacityValue">0%</span>
-        </div>
-      </div>
       <div class="variations-strip" id="variationsStrip">
         <div class="variations-header">
           <div class="section-label">Variations</div>
@@ -724,6 +744,60 @@ function _vbEmit(batch) {
   const total = batch.jobs.length;
   if (batch.onProgress) batch.onProgress(done, total);
   if (vbAllDone(batch) && batch.onAllDone) batch.onAllDone();
+}
+
+// ========================================================================
+// Sketch Analysis (synced copy of src/sketch-analysis.ts logic)
+// ========================================================================
+const SA_WHITE_THRESHOLD = 250;
+const SA_ALPHA_THRESHOLD = 128;
+
+function saIsStroke(data, i) {
+  if (data[i + 3] < SA_ALPHA_THRESHOLD) return false;
+  return data[i] < SA_WHITE_THRESHOLD || data[i + 1] < SA_WHITE_THRESHOLD || data[i + 2] < SA_WHITE_THRESHOLD;
+}
+
+function saAnalyzeSketch(data, width, height) {
+  let strokePixels = 0, sumX = 0, sumY = 0;
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      if (saIsStroke(data, i)) {
+        strokePixels++;
+        sumX += x; sumY += y;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  const total = width * height;
+  const coverage = total > 0 ? strokePixels / total : 0;
+  if (strokePixels === 0) return { strokePixels: 0, coverage: 0, density: 0, boundingBox: null, centerOfMass: null };
+  const bb = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+  const density = (bb.w * bb.h) > 0 ? strokePixels / (bb.w * bb.h) : 0;
+  return { strokePixels, coverage, density, boundingBox: bb, centerOfMass: { x: Math.round(sumX / strokePixels), y: Math.round(sumY / strokePixels) } };
+}
+
+function saGenerateTips(stats, cw, ch) {
+  if (stats.strokePixels === 0 || !stats.centerOfMass) return [];
+  const tips = [];
+  const diag = Math.sqrt(cw * cw + ch * ch);
+  const dx = stats.centerOfMass.x - cw / 2;
+  const dy = stats.centerOfMass.y - ch / 2;
+  if (Math.sqrt(dx * dx + dy * dy) > diag * 0.25) {
+    tips.push({ id: 'off-center', message: 'Try centering your sketch for better results', priority: 1 });
+  }
+  if (stats.coverage < 0.05) {
+    tips.push({ id: 'low-coverage', message: 'Draw larger \u2014 small sketches may lose detail', priority: 2 });
+  }
+  if (stats.density < 0.05) {
+    tips.push({ id: 'sparse', message: 'Add more detail within your sketch area', priority: 3 });
+  }
+  tips.sort((a, b) => a.priority - b.priority);
+  return tips;
 }
 
 // ========================================================================
@@ -974,9 +1048,6 @@ function applyLayout(mode) {
     const progressBar = $('#progressBar');
     outputArea.insertBefore(variationsStrip, progressBar);
   }
-
-  // Overlay controls always active (live mode always on)
-  $('#overlayControls').classList.add('active');
 
   // Reset canvas overlay opacity to slider value (Mode E overrides this)
   if (mode !== 'E') {
@@ -1539,10 +1610,15 @@ function openLightbox(src) {
   const counter = document.createElement('div');
   counter.className = 'lightbox-counter';
 
+  const useSketchBtn = document.createElement('button');
+  useSketchBtn.className = 'lightbox-use-sketch';
+  useSketchBtn.textContent = '✏️ Use as sketch';
+
   overlay.appendChild(img);
   overlay.appendChild(prevBtn);
   overlay.appendChild(nextBtn);
   overlay.appendChild(counter);
+  overlay.appendChild(useSketchBtn);
   document.body.appendChild(overlay);
 
   function show(i) {
@@ -1551,6 +1627,13 @@ function openLightbox(src) {
     counter.textContent = `${idx + 1} / ${urls.length}`;
   }
   show(idx);
+
+  useSketchBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+    confirmUseAsSketch(urls[idx]);
+  });
 
   prevBtn.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); });
   nextBtn.addEventListener('click', (e) => { e.stopPropagation(); show(idx + 1); });
@@ -2194,12 +2277,6 @@ $('#outputPreview').addEventListener('contextmenu', (e) => {
   }
 });
 
-$('#overlayOpacity').addEventListener('input', (e) => {
-  const val = parseInt(e.target.value);
-  overlayImg.style.opacity = val / 100;
-  $('#overlayOpacityValue').textContent = val + '%';
-});
-
 function updateOverlayImage() {
   overlayImg.src = canvas.toDataURL('image/png');
 }
@@ -2287,11 +2364,118 @@ function updateCanvasImgInfo() {
 }
 
 // ========================================================================
+// Sketch Tips (Layer 1) + AI Assist (Layers 2+3)
+// ========================================================================
+const _dismissedTips = (() => { try { return JSON.parse(localStorage.getItem('dismissedTips') || '{}'); } catch { return {}; } })();
+let _assistEnabled = false;
+
+function updateSketchTips() {
+  const container = $('#sketchTips');
+  if (!container) return;
+  const canvas = $('#sketchCanvas');
+  if (!canvas) { container.innerHTML = ''; return; }
+  const ctx = canvas.getContext('2d');
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const stats = saAnalyzeSketch(data, canvas.width, canvas.height);
+  const tips = saGenerateTips(stats, canvas.width, canvas.height).filter(t => !_dismissedTips[t.id]);
+  container.innerHTML = tips.map(t =>
+    `<div class="sketch-tip" data-tip-id="${t.id}"><span class="sketch-tip-icon">\u{1F4A1}</span><span>${t.message}</span><button class="sketch-tip-dismiss" title="Dismiss">\u00D7</button></div>`
+  ).join('');
+  container.querySelectorAll('.sketch-tip-dismiss').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tipEl = e.target.closest('.sketch-tip');
+      const id = tipEl.dataset.tipId;
+      _dismissedTips[id] = true;
+      localStorage.setItem('dismissedTips', JSON.stringify(_dismissedTips));
+      tipEl.remove();
+    });
+  });
+}
+
+function setSuggestionChips(chips) {
+  const container = $('#suggestionChips');
+  if (!container) return;
+  container.innerHTML = '';
+  chips.forEach(text => {
+    const chip = document.createElement('div');
+    chip.className = 'suggestion-chip';
+    chip.textContent = text;
+    chip.title = text;
+    chip.addEventListener('click', () => {
+      $('#promptInput').value = text;
+      container.innerHTML = '';
+      scheduleSubmit();
+    });
+    container.appendChild(chip);
+  });
+}
+
+async function checkAssistConfig() {
+  try {
+    const res = await fetch(`${API}/api/config`);
+    const data = await res.json();
+    _assistEnabled = !!data.assist_enabled;
+    const suggestBtn = $('#suggestBtn');
+    const enhanceBtn = $('#enhanceBtn');
+    if (suggestBtn) suggestBtn.style.display = _assistEnabled ? '' : 'none';
+    if (enhanceBtn) enhanceBtn.style.display = _assistEnabled ? '' : 'none';
+  } catch { /* assist stays hidden */ }
+}
+
+async function onSuggestClick() {
+  const btn = $('#suggestBtn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Thinking\u2026';
+  try {
+    const canvas = $('#sketchCanvas');
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    const res = await fetch(`${API}/api/assist/vision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64 }),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    const chips = [data.suggested_prompt];
+    if (data.composition_tips) chips.push(...data.composition_tips.slice(0, 2));
+    setSuggestionChips(chips.filter(Boolean));
+  } catch (e) {
+    showToast('Suggest failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading'); btn.textContent = 'Suggest';
+  }
+}
+
+async function onEnhanceClick() {
+  const btn = $('#enhanceBtn');
+  if (!btn || btn.disabled) return;
+  const prompt = $('#promptInput')?.value?.trim();
+  if (!prompt) { showToast('Enter a prompt first', 'warn'); return; }
+  btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Enhancing\u2026';
+  try {
+    const res = await fetch(`${API}/api/assist/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    const chips = [data.enhanced, ...(data.alternatives || [])];
+    setSuggestionChips(chips.filter(Boolean));
+  } catch (e) {
+    showToast('Enhance failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading'); btn.textContent = 'Enhance';
+  }
+}
+
+// ========================================================================
 // Debounced live submit
 // ========================================================================
 function scheduleSubmit() {
   if (debounceTimer) clearTimeout(debounceTimer);
   abortVarietyBatch();
+  updateSketchTips();
   debounceTimer = setTimeout(() => {
     if (hasStrokes) {
       submitCanvasToQueue();
@@ -2678,6 +2862,12 @@ $('#drawerFileInput').addEventListener('change', (e) => {
 });
 
 // ========================================================================
+// Assist buttons
+// ========================================================================
+$('#suggestBtn').addEventListener('click', onSuggestClick);
+$('#enhanceBtn').addEventListener('click', onEnhanceClick);
+
+// ========================================================================
 // Init
 // ========================================================================
 checkHealth();
@@ -2687,6 +2877,7 @@ setInterval(pollGpuStats, 1000);
 pollUsage();
 setInterval(pollUsage, 30000);
 loadSketches();
+checkAssistConfig();
 initOnboarding();
 loadWordList().then(initPrompt);
 // Load saved creativity range
