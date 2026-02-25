@@ -13,8 +13,8 @@ _client: anthropic.AsyncAnthropic | None = None
 
 
 def is_enabled() -> bool:
-    """Check if the Anthropic API key is configured."""
-    return bool(settings.anthropic_api_key)
+    """Check if AI assist is available (API key configured or dev mode with mocks)."""
+    return bool(settings.anthropic_api_key) or settings.dev_mode
 
 
 def get_client() -> anthropic.AsyncAnthropic:
@@ -37,11 +37,26 @@ def _strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+def _mock_vision_response() -> dict:
+    """Return mock vision response for dev mode (no API key required)."""
+    return {
+        "subject": "sketch",
+        "suggested_prompt": "a colorful illustration with vibrant details, creative composition, artistic style",
+        "composition_tips": [
+            "Add more detail to key areas for richer output",
+            "Consider balancing light and shadow",
+        ],
+    }
+
+
 async def analyze_sketch_vision(image_base64: str) -> dict:
     """Send a sketch image to Haiku vision and get subject + prompt suggestions.
 
     Returns: {subject: str, suggested_prompt: str, composition_tips: list[str]}
     """
+    if settings.dev_mode:
+        return _mock_vision_response()
+
     client = get_client()
 
     response = await client.messages.create(
@@ -89,11 +104,25 @@ async def analyze_sketch_vision(image_base64: str) -> dict:
     }
 
 
+def _mock_enhance_response(prompt: str) -> dict:
+    """Return mock prompt enhance response for dev mode (no API key required)."""
+    return {
+        "enhanced": f"{prompt}, vibrant colors, detailed shading, high quality illustration",
+        "alternatives": [
+            f"artistic interpretation of {prompt}, creative style, vivid imagery",
+            f"stylized version of {prompt}, professional illustration, rich details",
+        ],
+    }
+
+
 async def enhance_prompt(prompt: str) -> dict:
     """Enhance a user's prompt using Haiku.
 
     Returns: {enhanced: str, alternatives: list[str]}
     """
+    if settings.dev_mode:
+        return _mock_enhance_response(prompt)
+
     client = get_client()
 
     response = await client.messages.create(
