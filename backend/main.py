@@ -118,21 +118,29 @@ _load_presets()
 MAX_JOBS = 50
 jobs: dict[str, Job] = {}
 
-# Per-IP rate limiting: ip_hash -> deque of request timestamps
-_rate_limits: dict[str, collections.deque] = {}
+# Per-IP rate limiting: bucket -> ip_hash -> deque of request timestamps
+_rate_limits: dict[str, dict[str, collections.deque]] = {}
 
 
-def _check_rate_limit(ip_hash: str) -> bool:
+def _check_rate_limit(
+    ip_hash: str,
+    bucket: str = "generate",
+    window: Optional[int] = None,
+    max_req: Optional[int] = None,
+) -> bool:
     """Return True if the request is allowed, False if rate-limited."""
     now = time.monotonic()
-    window = settings.rate_limit_window
-    max_req = settings.rate_limit_max
+    window = window if window is not None else settings.rate_limit_window
+    max_req = max_req if max_req is not None else settings.rate_limit_max
 
-    if ip_hash not in _rate_limits:
-        _rate_limits[ip_hash] = collections.deque()
+    if bucket not in _rate_limits:
+        _rate_limits[bucket] = {}
+    limits = _rate_limits[bucket]
 
-    dq = _rate_limits[ip_hash]
-    # Evict timestamps outside the window
+    if ip_hash not in limits:
+        limits[ip_hash] = collections.deque()
+
+    dq = limits[ip_hash]
     while dq and dq[0] <= now - window:
         dq.popleft()
 
@@ -462,11 +470,8 @@ async def assist_vision(req: VisionRequest, request: Request):
 
     ip = get_client_ip(request)
     ip_hash = hash_ip(ip, settings.usage_salt)
-    if not _check_rate_limit(ip_hash):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limited: max {settings.rate_limit_max} requests per {settings.rate_limit_window}s",
-        )
+    if not _check_rate_limit(ip_hash, bucket="assist", max_req=10):
+        raise HTTPException(status_code=429, detail="AI assist rate limited")
 
     try:
         result = await assist.analyze_sketch_vision(req.image)
@@ -483,11 +488,8 @@ async def assist_prompt(req: PromptEnhanceRequest, request: Request):
 
     ip = get_client_ip(request)
     ip_hash = hash_ip(ip, settings.usage_salt)
-    if not _check_rate_limit(ip_hash):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limited: max {settings.rate_limit_max} requests per {settings.rate_limit_window}s",
-        )
+    if not _check_rate_limit(ip_hash, bucket="assist", max_req=10):
+        raise HTTPException(status_code=429, detail="AI assist rate limited")
 
     try:
         result = await assist.enhance_prompt(req.prompt)
