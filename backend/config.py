@@ -34,5 +34,9 @@ class Settings(BaseSettings):
 
     cors_origins: str = "https://llamasketch.com,https://staging.llamasketch.com"
 
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-haiku-4-5-20251001"
+    anthropic_max_tokens: int = 512
+
 
 settings = Settings()
