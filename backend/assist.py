@@ -77,7 +77,11 @@ async def analyze_sketch_vision(image_base64: str) -> dict:
     )
 
     raw = response.content[0].text
-    parsed = json.loads(_strip_code_fences(raw))
+    try:
+        parsed = json.loads(_strip_code_fences(raw))
+    except json.JSONDecodeError:
+        logger.warning("Vision response not valid JSON: %s", raw[:200])
+        raise ValueError("AI returned an unparseable response")
     return {
         "subject": str(parsed.get("subject", "unknown")),
         "suggested_prompt": str(parsed.get("suggested_prompt", "")),
@@ -112,7 +116,11 @@ async def enhance_prompt(prompt: str) -> dict:
     )
 
     raw = response.content[0].text
-    parsed = json.loads(_strip_code_fences(raw))
+    try:
+        parsed = json.loads(_strip_code_fences(raw))
+    except json.JSONDecodeError:
+        logger.warning("Enhance response not valid JSON: %s", raw[:200])
+        raise ValueError("AI returned an unparseable response")
     return {
         "enhanced": str(parsed.get("enhanced", prompt)),
         "alternatives": [str(a) for a in parsed.get("alternatives", [])][:2],

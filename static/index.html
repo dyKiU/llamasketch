@@ -2366,7 +2366,7 @@ function updateCanvasImgInfo() {
 // ========================================================================
 // Sketch Tips (Layer 1) + AI Assist (Layers 2+3)
 // ========================================================================
-const _dismissedTips = JSON.parse(localStorage.getItem('dismissedTips') || '{}');
+const _dismissedTips = (() => { try { return JSON.parse(localStorage.getItem('dismissedTips') || '{}'); } catch { return {}; } })();
 let _assistEnabled = false;
 
 function updateSketchTips() {
@@ -2395,15 +2395,18 @@ function updateSketchTips() {
 function setSuggestionChips(chips) {
   const container = $('#suggestionChips');
   if (!container) return;
-  container.innerHTML = chips.map(text =>
-    `<div class="suggestion-chip" title="${text.replace(/"/g, '&quot;')}">${text}</div>`
-  ).join('');
-  container.querySelectorAll('.suggestion-chip').forEach(chip => {
+  container.innerHTML = '';
+  chips.forEach(text => {
+    const chip = document.createElement('div');
+    chip.className = 'suggestion-chip';
+    chip.textContent = text;
+    chip.title = text;
     chip.addEventListener('click', () => {
-      $('#promptInput').value = chip.title;
+      $('#promptInput').value = text;
       container.innerHTML = '';
       scheduleSubmit();
     });
+    container.appendChild(chip);
   });
 }
 
