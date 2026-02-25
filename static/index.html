@@ -2894,7 +2894,7 @@ initOnboarding();
 loadWordList().then(initPrompt);
 // Load saved creativity range
 const savedRange = localStorage.getItem('creativityRange');
-if (savedRange) { creativityRange = JSON.parse(savedRange); }
+if (savedRange) { try { creativityRange = JSON.parse(savedRange); } catch { /* ignore corrupted data */ } }
 updateCreativityRangeUI();
 // Apply saved layout mode
 applyLayout(localStorage.getItem('layoutMode') || 'D');
