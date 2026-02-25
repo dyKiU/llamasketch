@@ -36,6 +36,7 @@
   --preview-bg: #eee;
   --accent: #1a1a2e;
   --accent-hover: #16213e;
+  --header-bg: #1a1a2e;
 }
 body.dark {
   --bg: #1a1a1a;
@@ -48,12 +49,13 @@ body.dark {
   --preview-bg: #333;
   --accent: #6c7bff;
   --accent-hover: #8b97ff;
+  --header-bg: #1e1e2e;
 }
 
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
 
 /* Header */
-header { background: var(--accent); color: #fff; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+header { background: var(--header-bg); color: #fff; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
 header h1 { font-size: 1.25rem; font-weight: 600; }
 .header-right { display: flex; align-items: center; gap: 16px; }
 .theme-toggle { background: none; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; color: #fff; cursor: pointer; font-size: 1.1rem; padding: 4px 8px; line-height: 1; transition: border-color 0.15s; }

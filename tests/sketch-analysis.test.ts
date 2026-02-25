@@ -3,8 +3,6 @@ import {
   analyzeSketch,
   generateTips,
   SketchStats,
-  SketchTip,
-  WHITE_THRESHOLD,
 } from "../src/sketch-analysis";
 
 // Helper: create RGBA pixel data (all white = empty canvas)
