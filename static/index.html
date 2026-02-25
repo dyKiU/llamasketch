@@ -2863,6 +2863,7 @@ pollUsage();
 setInterval(pollUsage, 30000);
 loadSketches();
 checkAssistConfig();
+setInterval(checkAssistConfig, 30000);
 initOnboarding();
 loadWordList().then(initPrompt);
 // Load saved creativity range
