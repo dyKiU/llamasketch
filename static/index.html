@@ -2380,17 +2380,27 @@ function updateSketchTips() {
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   const stats = saAnalyzeSketch(data, canvas.width, canvas.height);
   const tips = saGenerateTips(stats, canvas.width, canvas.height).filter(t => !_dismissedTips[t.id]);
-  container.innerHTML = tips.map(t =>
-    `<div class="sketch-tip" data-tip-id="${t.id}"><span class="sketch-tip-icon">\u{1F4A1}</span><span>${t.message}</span><button class="sketch-tip-dismiss" title="Dismiss">\u00D7</button></div>`
-  ).join('');
-  container.querySelectorAll('.sketch-tip-dismiss').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const tipEl = e.target.closest('.sketch-tip');
-      const id = tipEl.dataset.tipId;
-      _dismissedTips[id] = true;
+  container.innerHTML = '';
+  tips.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'sketch-tip';
+    row.dataset.tipId = t.id;
+    const icon = document.createElement('span');
+    icon.className = 'sketch-tip-icon';
+    icon.textContent = '\u{1F4A1}';
+    const msg = document.createElement('span');
+    msg.textContent = t.message;
+    const dismiss = document.createElement('button');
+    dismiss.className = 'sketch-tip-dismiss';
+    dismiss.title = 'Dismiss';
+    dismiss.textContent = '\u00D7';
+    dismiss.addEventListener('click', () => {
+      _dismissedTips[t.id] = true;
       localStorage.setItem('dismissedTips', JSON.stringify(_dismissedTips));
-      tipEl.remove();
+      row.remove();
     });
+    row.append(icon, msg, dismiss);
+    container.appendChild(row);
   });
 }
 
