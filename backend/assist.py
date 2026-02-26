@@ -3,13 +3,11 @@
 import json
 import logging
 
-import anthropic
-
 from .config import settings
 
 logger = logging.getLogger(__name__)
 
-_client: anthropic.AsyncAnthropic | None = None
+_client = None
 
 
 def is_enabled() -> bool:
@@ -17,10 +15,11 @@ def is_enabled() -> bool:
     return bool(settings.anthropic_api_key) or settings.dev_mode
 
 
-def get_client() -> anthropic.AsyncAnthropic:
-    """Lazy-init and return the async Anthropic client."""
+def get_client():
+    """Lazy-init and return the async Anthropic client.  Imports SDK on first call."""
     global _client
     if _client is None:
+        import anthropic
         _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     return _client
 
