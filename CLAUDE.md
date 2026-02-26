@@ -161,6 +161,18 @@ NON-DETERMINISTIC: Different elements fail on each run (race condition)
   - `src/canvas-tools.ts` → `tests/canvas-tools.test.ts`
   - `src/variety-batch.ts` → `tests/variety-batch.test.ts`
 
+## Local Development
+
+- **Port 8100** — always use port 8100 for local dev (port 8000 is taken by other services on this machine)
+- **Dev mode command**:
+  ```bash
+  mkdir -p data
+  PENCIL_DEV_MODE=true PENCIL_CORS_ORIGINS="*" PENCIL_USAGE_SALT="dev-salt" \
+    .venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8100 --reload
+  ```
+- **App URL**: http://127.0.0.1:8100/app
+- Dev mode uses `MockComfyUIClient` — no GPU required, returns synthetic images
+
 ## Deployment — Staging & Production
 
 - **Server**: InterServer VPS `vps-3291984`. SSH details in `~/secrets/llamasketch/server.md` — **never commit secrets to the repo**.
