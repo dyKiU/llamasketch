@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  analyzeSketch,
-  generateTips,
-  SketchStats,
-} from "../src/sketch-analysis";
+import { analyzeSketch, generateTips, SketchStats } from "../src/sketch-analysis";
 
 // Helper: create RGBA pixel data (all white = empty canvas)
 function whiteCanvas(w: number, h: number): Uint8ClampedArray {
@@ -21,7 +17,7 @@ function setPixel(
   r = 0,
   g = 0,
   b = 0,
-  a = 255
+  a = 255,
 ) {
   const i = (y * w + x) * 4;
   data[i] = r;
@@ -37,7 +33,7 @@ function fillRect(
   y: number,
   rw: number,
   rh: number,
-  w: number
+  w: number,
 ) {
   for (let dy = 0; dy < rh; dy++) {
     for (let dx = 0; dx < rw; dx++) {

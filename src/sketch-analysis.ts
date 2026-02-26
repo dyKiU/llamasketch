@@ -18,8 +18,8 @@ export interface Point {
 
 export interface SketchStats {
   strokePixels: number;
-  coverage: number;  // fraction of total canvas pixels that are strokes
-  density: number;   // fraction of bounding box pixels that are strokes
+  coverage: number; // fraction of total canvas pixels that are strokes
+  density: number; // fraction of bounding box pixels that are strokes
   boundingBox: BoundingBox | null;
   centerOfMass: Point | null;
 }
@@ -27,7 +27,7 @@ export interface SketchStats {
 export interface SketchTip {
   id: string;
   message: string;
-  priority: number;  // lower = more important
+  priority: number; // lower = more important
 }
 
 /** Returns true if the pixel at offset i is a visible stroke (not white, not transparent). */
@@ -41,11 +41,7 @@ function isStroke(data: Uint8ClampedArray, i: number): boolean {
 }
 
 /** Analyze raw RGBA pixel data and compute sketch statistics. */
-export function analyzeSketch(
-  data: Uint8ClampedArray,
-  width: number,
-  height: number
-): SketchStats {
+export function analyzeSketch(data: Uint8ClampedArray, width: number, height: number): SketchStats {
   let strokePixels = 0;
   let sumX = 0;
   let sumY = 0;
@@ -98,7 +94,7 @@ export function analyzeSketch(
 export function generateTips(
   stats: SketchStats,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
 ): SketchTip[] {
   if (stats.strokePixels === 0 || !stats.centerOfMass || !stats.boundingBox) {
     return [];
