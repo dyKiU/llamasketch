@@ -184,9 +184,13 @@ body.dark .canvas-wrapper canvas { background-image: repeating-conic-gradient(#4
 .canvas-overlay-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; border-radius: 8px; opacity: 0.2; display: none; }
 .canvas-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; max-width: 400px; }
 .tool-btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.8rem; transition: all 0.15s; }
+.tool-btn-icon { padding: 6px 10px; display: inline-flex; align-items: center; justify-content: center; }
+.tool-btn-icon svg { flex-shrink: 0; }
 .tool-btn:hover { border-color: var(--text-muted); background: var(--preview-bg); }
 .tool-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 .canvas-toolbar .range-row { flex: 1; min-width: 120px; }
+.canvas-toolbar .range-row .range-value { margin-right: 8px; }
+.canvas-toolbar-row { flex-basis: 100%; display: flex; align-items: center; gap: 8px; }
 .toolbar-overflow { display: contents; }
 .toolbar-more-btn { display: none; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); cursor: pointer; font-size: 0.85rem; font-weight: 700; letter-spacing: 2px; line-height: 1; }
 .toolbar-more-btn:hover { border-color: var(--text-muted); background: var(--preview-bg); }
@@ -337,6 +341,7 @@ body.dark .session-actions .del-session:hover { background: #3a2020; }
   .panel { padding: 10px; }
   .canvas-toolbar { gap: 4px; }
   .canvas-toolbar .tool-btn { padding: 4px 8px; font-size: 0.75rem; }
+  .canvas-toolbar .tool-btn-icon svg { width: 16px; height: 16px; }
   .toolbar-overflow { display: none; }
   .toolbar-overflow.open { display: contents; }
   .toolbar-more-btn { display: inline-flex; align-items: center; padding: 4px 8px; font-size: 0.75rem; }
@@ -421,15 +426,21 @@ body.dark .sketch-tip { background: #3d3520; color: #ffc107; border-color: #665a
       <div class="onboarding-tip" id="onboardingTip" style="display:none;">Draw something!</div>
     </div>
     <div class="canvas-toolbar">
-      <button class="tool-btn active" id="pencilBtn" data-tool="pencil">Pencil</button>
-      <button class="tool-btn" id="eraserBtn" data-tool="eraser">Eraser</button>
+      <button class="tool-btn tool-btn-icon active" id="pencilBtn" data-tool="pencil" title="Pencil">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/></svg>
+      </button>
+      <button class="tool-btn tool-btn-icon" id="eraserBtn" data-tool="eraser" title="Eraser">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21h10"/><path d="M5 11l4-4 8 8-4 4-8-8z"/><path d="M19 15l-4-4"/></svg>
+      </button>
       <div class="range-row">
         <input type="range" id="strokeWidthInput" min="1" max="30" value="3">
         <span class="range-value" id="strokeWidthValue">3</span>
       </div>
-      <button class="tool-btn" id="clearCanvasBtn">Clear</button>
-      <button class="tool-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
-      <button class="tool-btn" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)">&#8631;</button>
+      <div class="canvas-toolbar-row">
+        <button class="tool-btn" id="clearCanvasBtn">Clear</button>
+        <button class="tool-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
+        <button class="tool-btn" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)">&#8631;</button>
+      </div>
     </div>
     <div class="canvas-toolbar">
       <button class="tool-btn" id="loadSketchBtn">Upload
