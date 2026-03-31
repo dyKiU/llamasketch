@@ -24,10 +24,18 @@ from .models import (
     Job,
     JobStatus,
     JobStatusResponse,
+    PromptEnhanceRequest,
+    PromptEnhanceResponse,
     SketchInfo,
     UsageResponse,
+    VisionRequest,
+    VisionResponse,
 )
 from .usage import UsageTracker, get_client_ip, hash_ip
+from . import assist
+
+if settings.dev_mode:
+    from .mock_comfyui import MockComfyUIClient
 
 # ---------------------------------------------------------------------------
 # Preset sketches (generated at import time)
@@ -110,21 +118,29 @@ _load_presets()
 MAX_JOBS = 50
 jobs: dict[str, Job] = {}
 
-# Per-IP rate limiting: ip_hash -> deque of request timestamps
-_rate_limits: dict[str, collections.deque] = {}
+# Per-IP rate limiting: bucket -> ip_hash -> deque of request timestamps
+_rate_limits: dict[str, dict[str, collections.deque]] = {}
 
 
-def _check_rate_limit(ip_hash: str) -> bool:
+def _check_rate_limit(
+    ip_hash: str,
+    bucket: str = "generate",
+    window: Optional[int] = None,
+    max_req: Optional[int] = None,
+) -> bool:
     """Return True if the request is allowed, False if rate-limited."""
     now = time.monotonic()
-    window = settings.rate_limit_window
-    max_req = settings.rate_limit_max
+    window = window if window is not None else settings.rate_limit_window
+    max_req = max_req if max_req is not None else settings.rate_limit_max
 
-    if ip_hash not in _rate_limits:
-        _rate_limits[ip_hash] = collections.deque()
+    if bucket not in _rate_limits:
+        _rate_limits[bucket] = {}
+    limits = _rate_limits[bucket]
 
-    dq = _rate_limits[ip_hash]
-    # Evict timestamps outside the window
+    if ip_hash not in limits:
+        limits[ip_hash] = collections.deque()
+
+    dq = limits[ip_hash]
     while dq and dq[0] <= now - window:
         dq.popleft()
 
@@ -152,7 +168,7 @@ def _evict_old_jobs():
 # App lifecycle & client
 # ---------------------------------------------------------------------------
 
-client = ComfyUIClient()
+client = MockComfyUIClient() if settings.dev_mode else ComfyUIClient()
 tracker: UsageTracker
 
 
@@ -161,6 +177,8 @@ async def lifespan(app: FastAPI):
     global tracker
     tracker = UsageTracker(settings.usage_db, settings.usage_salt)
     await client.start()
+    if settings.dev_mode:
+        print("  [DEV MODE] Mock ComfyUI client active — no GPU required")
     yield
     await client.close()
 
@@ -223,11 +241,22 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/api/config")
 async def config():
-    return {"signup_enabled": settings.signup_enabled, "git_commit": settings.git_commit}
+    return {
+        "signup_enabled": settings.signup_enabled,
+        "git_commit": settings.git_commit,
+        "dev_mode": settings.dev_mode,
+        "daily_free_limit": settings.daily_free_limit,
+        "assist_enabled": assist.is_enabled(),
+    }
 
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
+    if settings.dev_mode:
+        return HealthResponse(
+            comfyui_reachable=True,
+            comfyui_url="mock://dev-mode",
+        )
     try:
         reachable = await client.health_check()
         return HealthResponse(
@@ -270,6 +299,15 @@ async def generate(req: GenerateRequest, request: Request):
             status_code=429,
             detail=f"Rate limited: max {settings.rate_limit_max} requests per {settings.rate_limit_window}s",
         )
+
+    # Daily free limit enforcement
+    if settings.daily_free_limit > 0:
+        used_today = tracker.get_today(ip_hash)
+        if used_today >= settings.daily_free_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily limit reached: {settings.daily_free_limit} free generations per day",
+            )
 
     tracker.record(ip_hash)
 
@@ -344,6 +382,17 @@ async def gpu_stats():
         1 for j in jobs.values()
         if j.status not in (JobStatus.completed, JobStatus.failed, JobStatus.cancelled)
     )
+    if settings.dev_mode:
+        vram_total = 24 * 1024**3  # 24 GB simulated
+        vram_used = 8 * 1024**3
+        return {
+            "gpu_name": "Dev Mode (Mock GPU)",
+            "vram_total": vram_total,
+            "vram_free": vram_total - vram_used,
+            "torch_vram_total": vram_total,
+            "torch_vram_free": vram_total - vram_used,
+            "active_jobs": active_jobs,
+        }
     try:
         resp = await client._client.get("/system_stats")
         data = resp.json()
@@ -385,9 +434,14 @@ async def job_result(job_id: str):
 async def usage(request: Request):
     ip = get_client_ip(request)
     ip_hash = hash_ip(ip, settings.usage_salt)
+    today = tracker.get_today(ip_hash)
+    limit = settings.daily_free_limit
+    remaining = max(0, limit - today) if limit > 0 else -1
     return UsageResponse(
-        today=tracker.get_today(ip_hash),
+        today=today,
         total=tracker.get_total(ip_hash),
+        daily_limit=limit,
+        remaining=remaining,
         global_today=tracker.get_global_today(),
         global_total=tracker.get_global_total(),
         unique_users_today=tracker.get_unique_today(),
@@ -401,3 +455,44 @@ async def usage_stats():
         "global_total": tracker.get_global_total(),
         "unique_users_today": tracker.get_unique_today(),
     }
+
+
+# ---------------------------------------------------------------------------
+# AI Assist routes (Layers 2+3)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/assist/vision", response_model=VisionResponse)
+async def assist_vision(req: VisionRequest, request: Request):
+    """Analyze a sketch image using Claude Haiku vision."""
+    if not assist.is_enabled():
+        raise HTTPException(status_code=503, detail="AI assist not configured")
+
+    ip = get_client_ip(request)
+    ip_hash = hash_ip(ip, settings.usage_salt)
+    if not _check_rate_limit(ip_hash, bucket="assist", max_req=10):
+        raise HTTPException(status_code=429, detail="AI assist rate limited")
+
+    try:
+        result = await assist.analyze_sketch_vision(req.image)
+        return VisionResponse(**result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI assist error: {exc}")
+
+
+@app.post("/api/assist/prompt", response_model=PromptEnhanceResponse)
+async def assist_prompt(req: PromptEnhanceRequest, request: Request):
+    """Enhance a user prompt using Claude Haiku."""
+    if not assist.is_enabled():
+        raise HTTPException(status_code=503, detail="AI assist not configured")
+
+    ip = get_client_ip(request)
+    ip_hash = hash_ip(ip, settings.usage_salt)
+    if not _check_rate_limit(ip_hash, bucket="assist", max_req=10):
+        raise HTTPException(status_code=429, detail="AI assist rate limited")
+
+    try:
+        result = await assist.enhance_prompt(req.prompt)
+        return PromptEnhanceResponse(**result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI assist error: {exc}")
